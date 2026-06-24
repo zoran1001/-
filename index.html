@@ -3,57 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>色卡管理工具</title>
+    <title>色卡与耗材管理工具</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <h1>色卡管理工具</h1>
-        <p>按颜色分类浏览色卡</p>
+        <h1>色卡与耗材管理</h1>
+        <p>按颜色分类浏览色卡，管理耗材库存</p>
         <div class="cloud-status" id="cloudStatus">
             <span class="cloud-icon" id="cloudIcon">☁️</span>
             <span class="cloud-text" id="cloudText">正在连接云端...</span>
         </div>
+        <div class="section-tabs" id="sectionTabs">
+            <button class="section-tab active" data-section="cards" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                色卡
+            </button>
+            <button class="section-tab" data-section="supplies" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                耗材
+            </button>
+        </div>
     </header>
 
-    <nav class="category-nav" role="navigation" aria-label="颜色分类导航">
-        <button class="category-btn active" data-category="all" type="button">全部</button>
-        <button class="category-btn" data-category="red" type="button">赤色</button>
-        <button class="category-btn" data-category="orange" type="button">橙色</button>
-        <button class="category-btn" data-category="yellow" type="button">黄色</button>
-        <button class="category-btn" data-category="green" type="button">绿色</button>
-        <button class="category-btn" data-category="cyan" type="button">青色</button>
-        <button class="category-btn" data-category="blue" type="button">蓝色</button>
-        <button class="category-btn" data-category="purple" type="button">紫色</button>
-        <button class="category-btn" data-category="black" type="button">黑色</button>
-        <button class="category-btn" data-category="white" type="button">白色</button>
-        <button class="category-btn" data-category="gray" type="button">灰色</button>
-        <div class="nav-divider"></div>
-        <button class="add-btn" id="addCardBtn" type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            添加色卡
-        </button>
-        <button class="template-btn" id="templateBtn" type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            模板
-        </button>
-        <button class="admin-btn" id="adminBtn" type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            后台
-        </button>
-    </nav>
+    <!-- ===== 色卡区域 ===== -->
+    <div class="section-panel" id="cardsPanel">
+        <nav class="category-nav" role="navigation" aria-label="颜色分类导航">
+            <button class="category-btn active" data-category="all" type="button">全部</button>
+            <button class="category-btn" data-category="red" type="button">赤色</button>
+            <button class="category-btn" data-category="orange" type="button">橙色</button>
+            <button class="category-btn" data-category="yellow" type="button">黄色</button>
+            <button class="category-btn" data-category="green" type="button">绿色</button>
+            <button class="category-btn" data-category="cyan" type="button">青色</button>
+            <button class="category-btn" data-category="blue" type="button">蓝色</button>
+            <button class="category-btn" data-category="purple" type="button">紫色</button>
+            <button class="category-btn" data-category="black" type="button">黑色</button>
+            <button class="category-btn" data-category="white" type="button">白色</button>
+            <button class="category-btn" data-category="gray" type="button">灰色</button>
+            <div class="nav-divider"></div>
+            <button class="add-btn" id="addCardBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                添加色卡
+            </button>
+            <button class="template-btn" id="templateBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                模板
+            </button>
+            <button class="admin-btn" id="adminBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                后台
+            </button>
+        </nav>
 
-    <main role="main">
-        <section class="cards-section">
-            <h2>📦 色卡列表</h2>
-            <div class="cards-container" id="cardsContainer" role="list"></div>
-        </section>
-    </main>
+        <main role="main">
+            <section class="cards-section">
+                <h2>色卡列表</h2>
+                <div class="cards-container" id="cardsContainer" role="list"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ===== 耗材区域 ===== -->
+    <div class="section-panel" id="suppliesPanel" style="display:none;">
+        <div class="supplies-toolbar">
+            <h2>耗材库存</h2>
+            <div class="supplies-actions">
+                <button class="supplies-filter-btn active" data-color="all" type="button">全部</button>
+                <button class="supplies-filter-btn" data-color="red" type="button">赤</button>
+                <button class="supplies-filter-btn" data-color="orange" type="button">橙</button>
+                <button class="supplies-filter-btn" data-color="yellow" type="button">黄</button>
+                <button class="supplies-filter-btn" data-color="green" type="button">绿</button>
+                <button class="supplies-filter-btn" data-color="cyan" type="button">青</button>
+                <button class="supplies-filter-btn" data-color="blue" type="button">蓝</button>
+                <button class="supplies-filter-btn" data-color="purple" type="button">紫</button>
+                <button class="supplies-filter-btn" data-color="black" type="button">黑</button>
+                <button class="supplies-filter-btn" data-color="white" type="button">白</button>
+                <button class="supplies-filter-btn" data-color="gray" type="button">灰</button>
+                <button class="add-supply-btn" id="addSupplyBtn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    添加耗材
+                </button>
+            </div>
+        </div>
+        <div class="supplies-container" id="suppliesContainer"></div>
+    </div>
 
     <footer>
-        <p>色卡管理工具 © 2024</p>
+        <p>色卡与耗材管理工具 © 2024</p>
     </footer>
 
+    <!-- ===== 色卡弹窗 ===== -->
     <div class="modal" id="addCardModal" role="dialog" aria-modal="true">
         <div class="modal-content">
             <button class="close-btn" id="closeModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
@@ -267,6 +306,42 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- ===== 耗材弹窗 ===== -->
+    <div class="modal" id="supplyModal" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <button class="close-btn" id="closeSupplyModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2 id="supplyModalTitle">添加耗材</h2>
+            <form id="supplyForm" novalidate>
+                <input type="hidden" id="supplyId">
+                <div class="form-group">
+                    <label for="supplyColor">颜色分类</label>
+                    <select id="supplyColor" name="supplyColor" required>
+                        <option value="">请选择颜色分类</option>
+                        <option value="red">赤色</option>
+                        <option value="orange">橙色</option>
+                        <option value="yellow">黄色</option>
+                        <option value="green">绿色</option>
+                        <option value="cyan">青色</option>
+                        <option value="blue">蓝色</option>
+                        <option value="purple">紫色</option>
+                        <option value="black">黑色</option>
+                        <option value="white">白色</option>
+                        <option value="gray">灰色</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="supplyManufacturer">厂商</label>
+                    <input type="text" id="supplyManufacturer" name="supplyManufacturer" required placeholder="请输入厂商名称">
+                </div>
+                <div class="form-group">
+                    <label for="supplyQuantity">数量</label>
+                    <input type="number" id="supplyQuantity" name="supplyQuantity" required min="0" step="1" placeholder="请输入数量">
+                </div>
+                <button type="submit" class="submit-btn" id="supplySubmitBtn">添加</button>
+            </form>
         </div>
     </div>
 

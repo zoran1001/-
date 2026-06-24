@@ -108,6 +108,62 @@ header p {
     font-size: 1rem;
     color: var(--text-muted);
     font-weight: 400;
+    margin-bottom: 4px;
+}
+
+/* ---- 分区切换标签 ---- */
+.section-tabs {
+    display: inline-flex;
+    gap: 4px;
+    margin-top: 14px;
+    padding: 5px;
+    background: #ffffff;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.section-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-full);
+    transition: all var(--transition-normal);
+    font-family: var(--font-sans);
+    letter-spacing: 0.02em;
+}
+
+.section-tab svg {
+    flex-shrink: 0;
+    transition: all var(--transition-normal);
+}
+
+.section-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+.section-tab.active {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-dark));
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    font-weight: 600;
+}
+
+.section-panel {
+    animation: sectionFadeIn 0.3s ease;
+}
+
+@keyframes sectionFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .cloud-status {
@@ -1760,7 +1816,312 @@ footer {
     }
 }
 
-/* Admin Modal Styles */
+/* ===== 耗材区域 ===== */
+.supplies-toolbar {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px 30px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.supplies-toolbar h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.supplies-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.supplies-filter-btn {
+    padding: 6px 12px;
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-full);
+    background: #ffffff;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+    position: relative;
+    padding-left: 28px;
+}
+
+.supplies-filter-btn::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.supplies-filter-btn[data-color="all"]::before {
+    background: conic-gradient(#ef4444 0deg 60deg, #f97316 60deg 120deg, #eab308 120deg 180deg, #22c55e 180deg 240deg, #06b6d4 240deg 300deg, #a855f7 300deg 360deg);
+}
+.supplies-filter-btn[data-color="red"]::before { background: #ef4444; }
+.supplies-filter-btn[data-color="orange"]::before { background: #f97316; }
+.supplies-filter-btn[data-color="yellow"]::before { background: #eab308; }
+.supplies-filter-btn[data-color="green"]::before { background: #22c55e; }
+.supplies-filter-btn[data-color="cyan"]::before { background: #06b6d4; }
+.supplies-filter-btn[data-color="blue"]::before { background: #3b82f6; }
+.supplies-filter-btn[data-color="purple"]::before { background: #a855f7; }
+.supplies-filter-btn[data-color="black"]::before { background: #1f2937; }
+.supplies-filter-btn[data-color="white"]::before { background: #fff; border: 2px solid #d1d5db; }
+.supplies-filter-btn[data-color="gray"]::before { background: #9ca3af; }
+
+.supplies-filter-btn:hover {
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.supplies-filter-btn.active {
+    border-color: transparent;
+    background: var(--accent-primary);
+    color: white;
+    font-weight: 600;
+}
+
+.supplies-filter-btn.active::before {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.add-supply-btn {
+    margin-left: 8px;
+    padding: 8px 18px;
+    border: 1.5px solid rgba(34, 197, 94, 0.3);
+    border-radius: var(--radius-full);
+    color: #22c55e;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34, 197, 94, 0.08);
+    transition: all var(--transition-normal);
+    font-family: var(--font-sans);
+}
+
+.add-supply-btn svg { color: #22c55e; transition: color var(--transition-normal); }
+
+.add-supply-btn:hover {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    border-color: transparent;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
+}
+.add-supply-btn:hover svg { color: white; }
+
+.supplies-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px 30px 60px;
+}
+
+/* 耗材表格 */
+.supplies-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.supplies-table thead {
+    background: var(--bg-secondary);
+}
+
+.supplies-table th {
+    padding: 14px 18px;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border-default);
+}
+
+.supplies-table td {
+    padding: 14px 18px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+}
+
+.supplies-table tbody tr {
+    transition: background var(--transition-fast);
+}
+
+.supplies-table tbody tr:hover {
+    background: var(--bg-card-hover);
+}
+
+.supplies-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.supply-color-dot {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+}
+
+.supply-color-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.supply-color-cell .supply-color-dot {
+    background: #ef4444;
+}
+
+.supply-color-name {
+    font-weight: 500;
+}
+
+.supply-manufacturer {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.supply-quantity {
+    font-weight: 600;
+    font-size: 1rem;
+    font-family: var(--font-mono);
+}
+
+.supply-quantity.low {
+    color: var(--accent-warning);
+}
+
+.supply-quantity.zero {
+    color: var(--accent-danger);
+}
+
+.supply-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.supply-action-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--bg-glass);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+}
+
+.supply-action-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-glass-hover);
+}
+
+.supply-action-btn.edit {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary-light);
+}
+
+.supply-action-btn.edit:hover {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.supply-action-btn.delete {
+    border-color: var(--accent-danger);
+    color: var(--accent-danger);
+}
+
+.supply-action-btn.delete:hover {
+    background: var(--accent-danger);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .supplies-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 16px 16px 0;
+    }
+
+    .supplies-container {
+        padding: 16px 16px 40px;
+    }
+
+    .supplies-table {
+        font-size: 0.8rem;
+    }
+
+    .supplies-table th,
+    .supplies-table td {
+        padding: 10px 8px;
+    }
+
+    .section-tab {
+        padding: 6px 14px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .supplies-table thead {
+        display: none;
+    }
+
+    .supplies-table tbody tr {
+        display: block;
+        padding: 12px;
+        border-bottom: 1px solid var(--border-default);
+    }
+
+    .supplies-table tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: none;
+    }
+
+    .supplies-table tbody td::before {
+        content: attr(data-label);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+}
+
+/* ===== Admin Modal Styles ===== */
 .admin-btn {
     composes: btn;
     background: var(--bg-tertiary);
