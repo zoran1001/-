@@ -5,6 +5,263 @@ const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const VERSION_KEY = 'color_cards_version';
 const CURRENT_VERSION = '2.0';
 
+// Supabase 云端配置
+const SUPABASE_URL = 'https://xgalutaglwryurdmwbpl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnYWx1dGFnbHdyeXVyZG13YnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTM3MTksImV4cCI6MjA5NzgyOTcxOX0.CfJ5kjGHI2_np7nUfl8O12-xBC2T8mj_xsEl-fG_NJc';
+
+let supabase = null;
+
+try {
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase 初始化成功');
+    }
+} catch (e) {
+    console.warn('Supabase 初始化失败，将使用本地存储模式', e);
+}
+
+const CloudStorage = {
+    isAvailable() {
+        return supabase !== null;
+    },
+
+    async loadCards() {
+        if (!this.isAvailable()) return null;
+        try {
+            const { data, error } = await supabase
+                .from('cards')
+                .select('*')
+                .order('id');
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.warn('从云端加载色卡失败', e);
+            return null;
+        }
+    },
+
+    async saveCards(cards) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('cards')
+                .upsert(cards.map(card => ({
+                    id: card.id,
+                    category: card.category,
+                    manufacturer: card.manufacturer,
+                    englishName: card.englishName,
+                    material: card.material,
+                    image: card.image,
+                    chineseName: card.chineseName,
+                    config: card.config
+                })));
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('保存色卡到云端失败', e);
+            return false;
+        }
+    },
+
+    async addCard(card) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('cards')
+                .insert({
+                    id: card.id,
+                    category: card.category,
+                    manufacturer: card.manufacturer,
+                    englishName: card.englishName,
+                    material: card.material,
+                    image: card.image,
+                    chineseName: card.chineseName,
+                    config: card.config
+                });
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('添加色卡到云端失败', e);
+            return false;
+        }
+    },
+
+    async updateCard(card) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('cards')
+                .update({
+                    category: card.category,
+                    manufacturer: card.manufacturer,
+                    englishName: card.englishName,
+                    material: card.material,
+                    image: card.image,
+                    chineseName: card.chineseName,
+                    config: card.config
+                })
+                .eq('id', card.id);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('更新云端色卡失败', e);
+            return false;
+        }
+    },
+
+    async deleteCard(cardId) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('cards')
+                .delete()
+                .eq('id', cardId);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('删除云端色卡失败', e);
+            return false;
+        }
+    },
+
+    async loadMaterials() {
+        if (!this.isAvailable()) return null;
+        try {
+            const { data, error } = await supabase
+                .from('materials')
+                .select('name')
+                .order('name');
+            if (error) throw error;
+            return data ? data.map(item => item.name) : [];
+        } catch (e) {
+            console.warn('从云端加载材料失败', e);
+            return null;
+        }
+    },
+
+    async addMaterial(name) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('materials')
+                .insert({ name });
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('添加材料到云端失败', e);
+            return false;
+        }
+    },
+
+    async deleteMaterial(name) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('materials')
+                .delete()
+                .eq('name', name);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('删除云端材料失败', e);
+            return false;
+        }
+    },
+
+    async loadManufacturers() {
+        if (!this.isAvailable()) return null;
+        try {
+            const { data, error } = await supabase
+                .from('manufacturers')
+                .select('name')
+                .order('name');
+            if (error) throw error;
+            return data ? data.map(item => item.name) : [];
+        } catch (e) {
+            console.warn('从云端加载产商失败', e);
+            return null;
+        }
+    },
+
+    async addManufacturer(name) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('manufacturers')
+                .insert({ name });
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('添加产商到云端失败', e);
+            return false;
+        }
+    },
+
+    async deleteManufacturer(name) {
+        if (!this.isAvailable()) return false;
+        try {
+            const { error } = await supabase
+                .from('manufacturers')
+                .delete()
+                .eq('name', name);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('删除云端产商失败', e);
+            return false;
+        }
+    },
+
+    async loadTemplate() {
+        if (!this.isAvailable()) return null;
+        try {
+            const { data, error } = await supabase
+                .from('template')
+                .select('*')
+                .single();
+            if (error) {
+                if (error.code === 'PGRST116') return null;
+                throw error;
+            }
+            return data;
+        } catch (e) {
+            console.warn('从云端加载模板失败', e);
+            return null;
+        }
+    },
+
+    async saveTemplate(template) {
+        if (!this.isAvailable()) return false;
+        try {
+            const existing = await this.loadTemplate();
+            if (existing && existing.id) {
+                const { error } = await supabase
+                    .from('template')
+                    .update({
+                        manufacturer: template.manufacturer,
+                        material: template.material,
+                        config: template.config
+                    })
+                    .eq('id', existing.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('template')
+                    .insert({
+                        manufacturer: template.manufacturer,
+                        material: template.material,
+                        config: template.config
+                    });
+                if (error) throw error;
+            }
+            return true;
+        } catch (e) {
+            console.warn('保存模板到云端失败', e);
+            return false;
+        }
+    }
+};
+
 const defaultMaterials = [];
 const defaultManufacturers = [];
 
@@ -195,6 +452,7 @@ class MaterialManager {
         if (this.materials.includes(trimmed)) return false;
         this.materials.push(trimmed);
         Storage.saveMaterials(this.materials);
+        CloudStorage.addMaterial(trimmed);
         this.updateSelects();
         return true;
     }
@@ -205,6 +463,7 @@ class MaterialManager {
         if (this.manufacturers.includes(trimmed)) return false;
         this.manufacturers.push(trimmed);
         Storage.saveManufacturers(this.manufacturers);
+        CloudStorage.addManufacturer(trimmed);
         this.updateSelects();
         return true;
     }
@@ -460,11 +719,15 @@ class CardManager {
         if (!confirm('确定要删除吗？')) return;
 
         if (type === 'material') {
+            const name = this.materialManager.materials[index];
             this.materialManager.materials.splice(index, 1);
             Storage.saveMaterials(this.materialManager.materials);
+            CloudStorage.deleteMaterial(name);
         } else {
+            const name = this.materialManager.manufacturers[index];
             this.materialManager.manufacturers.splice(index, 1);
             Storage.saveManufacturers(this.materialManager.manufacturers);
+            CloudStorage.deleteManufacturer(name);
         }
 
         this.materialManager.updateSelects();
@@ -660,6 +923,7 @@ class CardManager {
 
             this.cards.push(newCard);
             Storage.saveCards(this.cards);
+            CloudStorage.addCard(newCard);
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
@@ -682,10 +946,7 @@ class CardManager {
                 newImage = this.modalManager.previews.editImage.querySelector('img').src;
             }
 
-            const material = document.getElementById('editMaterial').value.trim();
-            if (material) {
-                this.materialManager.add(material);
-            }
+            const material = document.getElementById('editMaterial').value;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.edit);
 
             this.cards[cardIndex] = {
@@ -700,6 +961,7 @@ class CardManager {
             };
 
             Storage.saveCards(this.cards);
+            CloudStorage.updateCard(this.cards[cardIndex]);
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
@@ -718,6 +980,7 @@ class CardManager {
         try {
             this.cards = this.cards.filter(c => c.id !== this.currentEditingCard.id);
             Storage.saveCards(this.cards);
+            CloudStorage.deleteCard(this.currentEditingCard.id);
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
@@ -746,6 +1009,7 @@ class CardManager {
             };
 
             Storage.saveTemplate(this.template);
+            CloudStorage.saveTemplate(this.template);
 
             if (confirm('确定要将模板配置应用到所有色卡吗？')) {
                 this.applyTemplateToAllCards();
@@ -767,6 +1031,7 @@ class CardManager {
         }));
 
         Storage.saveCards(this.cards);
+        CloudStorage.saveCards(this.cards);
         this.renderCards();
     }
 
@@ -790,6 +1055,51 @@ class CardManager {
         this.clearOldData();
         this.materialManager.updateSelects();
         this.filterCards('all');
+        this.loadFromCloud();
+    }
+
+    async loadFromCloud() {
+        if (!CloudStorage.isAvailable()) return;
+
+        try {
+            const [cloudCards, cloudMaterials, cloudManufacturers, cloudTemplate] = await Promise.all([
+                CloudStorage.loadCards(),
+                CloudStorage.loadMaterials(),
+                CloudStorage.loadManufacturers(),
+                CloudStorage.loadTemplate()
+            ]);
+
+            if (cloudCards && cloudCards.length > 0) {
+                this.cards = cloudCards;
+                Storage.saveCards(this.cards);
+                this.renderCards();
+            }
+
+            if (cloudMaterials && cloudMaterials.length > 0) {
+                this.materialManager.materials = cloudMaterials;
+                Storage.saveMaterials(cloudMaterials);
+                this.materialManager.updateSelects();
+            }
+
+            if (cloudManufacturers && cloudManufacturers.length > 0) {
+                this.materialManager.manufacturers = cloudManufacturers;
+                Storage.saveManufacturers(cloudManufacturers);
+                this.materialManager.updateSelects();
+            }
+
+            if (cloudTemplate) {
+                this.template = {
+                    manufacturer: cloudTemplate.manufacturer || '',
+                    material: cloudTemplate.material || '',
+                    config: cloudTemplate.config || []
+                };
+                Storage.saveTemplate(this.template);
+            }
+
+            console.log('云端数据同步完成');
+        } catch (e) {
+            console.warn('从云端加载数据失败', e);
+        }
     }
 
     clearOldData() {
