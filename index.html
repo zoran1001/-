@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>色卡与耗材管理工具</title>
+    <title>色卡管理工具</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <h1>色卡与耗材管理</h1>
-        <p>按颜色分类浏览色卡，管理耗材库存</p>
+        <h1>色卡管理</h1>
+        <p>按颜色分类浏览和管理色卡</p>
         <div class="cloud-status" id="cloudStatus">
             <span class="cloud-icon" id="cloudIcon">☁️</span>
             <span class="cloud-text" id="cloudText">正在连接云端...</span>
@@ -18,10 +18,6 @@
             <button class="section-tab active" data-section="cards" type="button">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 色卡
-            </button>
-            <button class="section-tab" data-section="supplies" type="button">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-                耗材
             </button>
         </div>
     </header>
@@ -63,33 +59,8 @@
         </main>
     </div>
 
-    <!-- ===== 耗材区域 ===== -->
-    <div class="section-panel" id="suppliesPanel" style="display:none;">
-        <div class="supplies-toolbar">
-            <h2>耗材库存</h2>
-            <div class="supplies-actions">
-                <button class="supplies-filter-btn active" data-color="all" type="button">全部</button>
-                <button class="supplies-filter-btn" data-color="red" type="button">赤</button>
-                <button class="supplies-filter-btn" data-color="orange" type="button">橙</button>
-                <button class="supplies-filter-btn" data-color="yellow" type="button">黄</button>
-                <button class="supplies-filter-btn" data-color="green" type="button">绿</button>
-                <button class="supplies-filter-btn" data-color="cyan" type="button">青</button>
-                <button class="supplies-filter-btn" data-color="blue" type="button">蓝</button>
-                <button class="supplies-filter-btn" data-color="purple" type="button">紫</button>
-                <button class="supplies-filter-btn" data-color="black" type="button">黑</button>
-                <button class="supplies-filter-btn" data-color="white" type="button">白</button>
-                <button class="supplies-filter-btn" data-color="gray" type="button">灰</button>
-                <button class="add-supply-btn" id="addSupplyBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    添加耗材
-                </button>
-            </div>
-        </div>
-        <div class="supplies-container" id="suppliesContainer"></div>
-    </div>
-
     <footer>
-        <p>色卡与耗材管理工具 © 2024</p>
+        <p>色卡管理工具 © 2024</p>
     </footer>
 
     <!-- ===== 色卡弹窗 ===== -->
@@ -133,6 +104,10 @@
                         <option value="white">白色</option>
                         <option value="gray">灰色</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">库存数量</label>
+                    <input type="number" id="quantity" name="quantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
                 </div>
                 <div class="form-group">
                     <label for="imageUpload">色卡图片</label>
@@ -198,6 +173,10 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="editQuantity">库存数量</label>
+                    <input type="number" id="editQuantity" name="editQuantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
+                </div>
+                <div class="form-group">
                     <label for="editImageUpload">色卡图片</label>
                     <input type="file" id="editImageUpload" name="editImageUpload" accept="image/*">
                     <div id="editImagePreview"></div>
@@ -244,6 +223,10 @@
                 <div class="detail-item">
                     <span class="detail-label">颜色分类：</span>
                     <span id="detailCategory"></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">库存数量：</span>
+                    <span id="detailQuantity"></span>
                 </div>
                 <div class="detail-item full-width">
                     <span class="detail-label">配置信息：</span>
@@ -306,54 +289,6 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-        </div>
-    </div>
-
-    <!-- ===== 耗材弹窗 ===== -->
-    <div class="modal" id="supplyModal" role="dialog" aria-modal="true">
-        <div class="modal-content">
-            <button class="close-btn" id="closeSupplyModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
-            <h2 id="supplyModalTitle">添加耗材</h2>
-            <form id="supplyForm" novalidate>
-                <input type="hidden" id="supplyId">
-                <div class="form-group">
-                    <label for="supplyColor">颜色分类</label>
-                    <select id="supplyColor" name="supplyColor" required>
-                        <option value="">请选择颜色分类</option>
-                        <option value="red">赤色</option>
-                        <option value="orange">橙色</option>
-                        <option value="yellow">黄色</option>
-                        <option value="green">绿色</option>
-                        <option value="cyan">青色</option>
-                        <option value="blue">蓝色</option>
-                        <option value="purple">紫色</option>
-                        <option value="black">黑色</option>
-                        <option value="white">白色</option>
-                        <option value="gray">灰色</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="supplyManufacturer">厂商</label>
-                    <input type="text" id="supplyManufacturer" name="supplyManufacturer" required placeholder="请输入厂商名称">
-                </div>
-                <div class="form-group">
-                    <label for="supplyTexture">材质</label>
-                    <input type="text" id="supplyTexture" name="supplyTexture" required placeholder="请输入材质">
-                </div>
-                <div class="form-group">
-                    <label for="supplyMaterial">材料</label>
-                    <input type="text" id="supplyMaterial" name="supplyMaterial" required placeholder="请输入材料">
-                </div>
-                <div class="form-group">
-                    <label for="supplyQuantity">数量</label>
-                    <input type="number" id="supplyQuantity" name="supplyQuantity" required min="0" step="1" placeholder="请输入数量">
-                </div>
-                <div class="form-group">
-                    <label for="supplyPrice">价格 (¥)</label>
-                    <input type="number" id="supplyPrice" name="supplyPrice" required min="0" step="0.01" placeholder="请输入单价">
-                </div>
-                <button type="submit" class="submit-btn" id="supplySubmitBtn">添加</button>
-            </form>
         </div>
     </div>
 

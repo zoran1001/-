@@ -103,7 +103,8 @@ const CloudStorage = {
                     material: card.material,
                     image: card.image,
                     chineseName: card.chineseName,
-                    config: card.config
+                    config: card.config,
+                    quantity: card.quantity
                 })));
             if (error) throw error;
             return true;
@@ -126,7 +127,8 @@ const CloudStorage = {
                     material: card.material,
                     image: card.image,
                     chineseName: card.chineseName,
-                    config: card.config
+                    config: card.config,
+                    quantity: card.quantity
                 }));
             if (error) throw error;
             return true;
@@ -148,7 +150,8 @@ const CloudStorage = {
                     material: card.material,
                     image: card.image,
                     chineseName: card.chineseName,
-                    config: card.config
+                    config: card.config,
+                    quantity: card.quantity
                 }))
                 .eq('id', card.id);
             if (error) throw error;
@@ -823,6 +826,10 @@ class CardManager {
                             <div class="info-label">材料</div>
                             <div class="info-value">${card.material}</div>
                         </div>
+                        <div class="info-item">
+                            <div class="info-label">库存</div>
+                            <div class="info-value">${card.quantity || 0} 件</div>
+                        </div>
                     </div>
                     <div class="card-config">
                         <div class="config-title">配置信息</div>
@@ -863,6 +870,7 @@ class CardManager {
         document.getElementById('detailManufacturer').textContent = card.manufacturer;
         document.getElementById('detailMaterial').textContent = card.material;
         document.getElementById('detailCategory').textContent = categoryNames[card.category] || card.category;
+        document.getElementById('detailQuantity').textContent = (card.quantity || 0) + ' 件';
 
         const configText = Utils.configToText(card.config);
         document.getElementById('detailConfig').textContent = configText;
@@ -891,6 +899,7 @@ class CardManager {
         document.getElementById('editManufacturer').value = card.manufacturer;
         document.getElementById('editMaterial').value = card.material;
         document.getElementById('editCategory').value = card.category;
+        document.getElementById('editQuantity').value = card.quantity || 0;
 
         this.modalManager.previews.editImage.innerHTML = '';
 
@@ -956,6 +965,7 @@ class CardManager {
             const category = document.getElementById('category').value;
             const manufacturer = document.getElementById('manufacturer').value;
             const material = document.getElementById('material').value;
+            const quantity = parseInt(document.getElementById('quantity').value, 10) || 0;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.add);
 
             const newCard = {
@@ -968,7 +978,8 @@ class CardManager {
                     ? this.modalManager.previews.image.querySelector('img').src 
                     : '',
                 chineseName: document.getElementById('chineseName').value,
-                config: config
+                config: config,
+                quantity: quantity
             };
 
             this.cards.push(newCard);
@@ -1007,7 +1018,8 @@ class CardManager {
                 material: material,
                 image: newImage,
                 chineseName: document.getElementById('editChineseName').value,
-                config: config
+                config: config,
+                quantity: parseInt(document.getElementById('editQuantity').value, 10) || 0
             };
 
             Storage.saveCards(this.cards);
@@ -1173,379 +1185,7 @@ class CardManager {
     }
 }
 
-// ==================== 耗材管理 ====================
-const SUPPLIES_KEY = 'color_supplies_data';
-
-const categoryColorsSupplies = {
-    red: '#ef4444',
-    orange: '#f97316',
-    yellow: '#eab308',
-    green: '#22c55e',
-    cyan: '#06b6d4',
-    blue: '#3b82f6',
-    purple: '#a855f7',
-    black: '#1f2937',
-    white: '#f9fafb',
-    gray: '#9ca3af'
-};
-
-const SuppliesCloud = {
-    isAvailable() {
-        return supabaseClient !== null;
-    },
-
-    async loadSupplies() {
-        if (!this.isAvailable()) return null;
-        try {
-            const { data, error } = await supabaseClient
-                .from('supplies')
-                .select('*')
-                .order('id');
-            if (error) {
-                if (error.code === 'PGRST205') {
-                    console.warn('supplies 表不存在，请在 Supabase 控制台执行建表 SQL');
-                    return null;
-                }
-                throw error;
-            }
-            return data ? data.map(keysToCamel) : [];
-        } catch (e) {
-            console.warn('从云端加载耗材失败', e);
-            return null;
-        }
-    },
-
-    async saveSupplies(supplies) {
-        if (!this.isAvailable()) return false;
-        try {
-            const { error } = await supabaseClient
-                .from('supplies')
-                .upsert(supplies.map(s => keysToSnake({
-                    id: s.id,
-                    color: s.color,
-                    manufacturer: s.manufacturer,
-                    texture: s.texture,
-                    material: s.material,
-                    quantity: s.quantity,
-                    price: s.price
-                })));
-            if (error) throw error;
-            return true;
-        } catch (e) {
-            console.warn('保存耗材到云端失败', e);
-            return false;
-        }
-    },
-
-    async addSupply(supply) {
-        if (!this.isAvailable()) return false;
-        try {
-            const { error } = await supabaseClient
-                .from('supplies')
-                .insert(keysToSnake({
-                    id: supply.id,
-                    color: supply.color,
-                    manufacturer: supply.manufacturer,
-                    texture: supply.texture,
-                    material: supply.material,
-                    quantity: supply.quantity,
-                    price: supply.price
-                }));
-            if (error) throw error;
-            return true;
-        } catch (e) {
-            console.warn('添加耗材到云端失败', e);
-            return false;
-        }
-    },
-
-    async updateSupply(supply) {
-        if (!this.isAvailable()) return false;
-        try {
-            const { error } = await supabaseClient
-                .from('supplies')
-                .update(keysToSnake({
-                    color: supply.color,
-                    manufacturer: supply.manufacturer,
-                    texture: supply.texture,
-                    material: supply.material,
-                    quantity: supply.quantity,
-                    price: supply.price
-                }))
-                .eq('id', supply.id);
-            if (error) throw error;
-            return true;
-        } catch (e) {
-            console.warn('更新云端耗材失败', e);
-            return false;
-        }
-    },
-
-    async deleteSupply(supplyId) {
-        if (!this.isAvailable()) return false;
-        try {
-            const { error } = await supabaseClient
-                .from('supplies')
-                .delete()
-                .eq('id', supplyId);
-            if (error) throw error;
-            return true;
-        } catch (e) {
-            console.warn('删除云端耗材失败', e);
-            return false;
-        }
-    }
-};
-
-const SuppliesStorage = {
-    load() {
-        const saved = localStorage.getItem(SUPPLIES_KEY);
-        if (saved) {
-            try { return JSON.parse(saved); }
-            catch { return []; }
-        }
-        return [];
-    },
-    save(supplies) {
-        localStorage.setItem(SUPPLIES_KEY, JSON.stringify(supplies));
-    }
-};
-
-class SuppliesManager {
-    constructor() {
-        this.supplies = SuppliesStorage.load();
-        this.currentEditingId = null;
-        this.currentFilter = 'all';
-        this.supplyModal = document.getElementById('supplyModal');
-        this.supplyForm = document.getElementById('supplyForm');
-        this.container = document.getElementById('suppliesContainer');
-
-        this.bindEvents();
-    }
-
-    bindEvents() {
-        // 添加按钮
-        document.getElementById('addSupplyBtn').addEventListener('click', () => this.showAddModal());
-        document.getElementById('closeSupplyModalBtn').addEventListener('click', () => this.closeModal());
-        this.supplyForm.addEventListener('submit', (e) => this.handleSubmit(e));
-
-        // 颜色筛选
-        document.querySelectorAll('.supplies-filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.currentFilter = btn.getAttribute('data-color');
-                document.querySelectorAll('.supplies-filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.render();
-            });
-        });
-
-        // 弹窗背景点击关闭
-        window.addEventListener('click', (e) => {
-            if (e.target === this.supplyModal) this.closeModal();
-        });
-    }
-
-    showAddModal() {
-        this.currentEditingId = null;
-        document.getElementById('supplyModalTitle').textContent = '添加耗材';
-        document.getElementById('supplySubmitBtn').textContent = '添加';
-        this.supplyForm.reset();
-        document.getElementById('supplyId').value = '';
-        this.supplyModal.style.display = 'block';
-    }
-
-    showEditModal(supplyId) {
-        const supply = this.supplies.find(s => s.id === supplyId);
-        if (!supply) return;
-
-        this.currentEditingId = supplyId;
-        document.getElementById('supplyModalTitle').textContent = '编辑耗材';
-        document.getElementById('supplySubmitBtn').textContent = '保存';
-        document.getElementById('supplyId').value = supply.id;
-        document.getElementById('supplyColor').value = supply.color;
-        document.getElementById('supplyManufacturer').value = supply.manufacturer;
-        document.getElementById('supplyTexture').value = supply.texture || '';
-        document.getElementById('supplyMaterial').value = supply.material || '';
-        document.getElementById('supplyQuantity').value = supply.quantity;
-        document.getElementById('supplyPrice').value = supply.price || '';
-        this.supplyModal.style.display = 'block';
-    }
-
-    closeModal() {
-        this.supplyModal.style.display = 'none';
-        this.supplyForm.reset();
-        this.currentEditingId = null;
-    }
-
-    handleSubmit(e) {
-        e.preventDefault();
-
-        const color = document.getElementById('supplyColor').value;
-        const manufacturer = document.getElementById('supplyManufacturer').value.trim();
-        const texture = document.getElementById('supplyTexture').value.trim();
-        const material = document.getElementById('supplyMaterial').value.trim();
-        const quantity = parseInt(document.getElementById('supplyQuantity').value, 10);
-        const price = parseFloat(document.getElementById('supplyPrice').value);
-
-        if (!color || !manufacturer || !texture || !material || isNaN(quantity) || isNaN(price)) {
-            alert('请填写所有必填项');
-            return;
-        }
-
-        if (this.currentEditingId !== null) {
-            const index = this.supplies.findIndex(s => s.id === this.currentEditingId);
-            if (index !== -1) {
-                this.supplies[index] = { ...this.supplies[index], color, manufacturer, texture, material, quantity, price };
-                SuppliesCloud.updateSupply(this.supplies[index]);
-            }
-        } else {
-            const newSupply = { id: Date.now(), color, manufacturer, texture, material, quantity, price };
-            this.supplies.push(newSupply);
-            SuppliesCloud.addSupply(newSupply);
-        }
-
-        SuppliesStorage.save(this.supplies);
-        this.render();
-        this.closeModal();
-    }
-
-    handleDelete(supplyId) {
-        const supply = this.supplies.find(s => s.id === supplyId);
-        if (!supply) return;
-        if (!confirm(`确定要删除耗材「${supply.manufacturer} - ${categoryNames[supply.color] || supply.color}」吗？`)) return;
-
-        this.supplies = this.supplies.filter(s => s.id !== supplyId);
-        SuppliesStorage.save(this.supplies);
-        SuppliesCloud.deleteSupply(supplyId);
-        this.render();
-    }
-
-    render() {
-        const filtered = this.currentFilter === 'all'
-            ? this.supplies
-            : this.supplies.filter(s => s.color === this.currentFilter);
-
-        if (this.supplies.length === 0) {
-            this.container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <div class="empty-state-text">还没有耗材记录</div>
-                    <div class="empty-state-hint">点击「+ 添加耗材」开始记录耗材库存</div>
-                </div>`;
-            return;
-        }
-
-        if (filtered.length === 0) {
-            this.container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">🔍</div>
-                    <div class="empty-state-text">该颜色分类下没有耗材</div>
-                    <div class="empty-state-hint">试试其他颜色筛选</div>
-                </div>`;
-            return;
-        }
-
-        const rows = filtered.map(supply => {
-            const colorHex = categoryColorsSupplies[supply.color] || '#888';
-            const borderStyle = supply.color === 'white' ? 'border: 2px solid #d1d5db;' : '';
-            const qtyClass = supply.quantity === 0 ? 'zero' : (supply.quantity < 10 ? 'low' : '');
-
-            return `
-                <tr>
-                    <td data-label="颜色">
-                        <span class="supply-color-cell">
-                            <span class="supply-color-dot" style="background:${colorHex};${borderStyle}"></span>
-                            <span class="supply-color-name">${categoryNames[supply.color] || supply.color}</span>
-                        </span>
-                    </td>
-                    <td data-label="厂商"><span class="supply-manufacturer">${supply.manufacturer}</span></td>
-                    <td data-label="材质"><span>${supply.texture || '-'}</span></td>
-                    <td data-label="材料"><span>${supply.material || '-'}</span></td>
-                    <td data-label="数量"><span class="supply-quantity ${qtyClass}">${supply.quantity}</span></td>
-                    <td data-label="价格"><span class="supply-price">¥${(supply.price || 0).toFixed(2)}</span></td>
-                    <td data-label="操作">
-                        <div class="supply-actions">
-                            <button class="supply-action-btn edit" data-edit="${supply.id}">编辑</button>
-                            <button class="supply-action-btn delete" data-delete="${supply.id}">删除</button>
-                        </div>
-                    </td>
-                </tr>`;
-        }).join('');
-
-        this.container.innerHTML = `
-            <table class="supplies-table">
-                <thead>
-                    <tr>
-                        <th>颜色</th>
-                        <th>厂商</th>
-                        <th>材质</th>
-                        <th>材料</th>
-                        <th>数量</th>
-                        <th>价格</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>`;
-
-        // 绑定编辑和删除事件
-        this.container.querySelectorAll('[data-edit]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = parseInt(btn.getAttribute('data-edit'));
-                this.showEditModal(id);
-            });
-        });
-        this.container.querySelectorAll('[data-delete]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = parseInt(btn.getAttribute('data-delete'));
-                this.handleDelete(id);
-            });
-        });
-    }
-
-    async init() {
-        this.render();
-        // 异步尝试从云端加载
-        if (SuppliesCloud.isAvailable()) {
-            const cloudData = await SuppliesCloud.load();
-            if (cloudData && cloudData.length > 0) {
-                this.supplies = cloudData;
-                SuppliesStorage.save(this.supplies);
-                this.render();
-            }
-        }
-    }
-}
-
-// ==================== 分区切换逻辑 ====================
-function initSectionTabs() {
-    const tabs = document.querySelectorAll('.section-tab');
-    const cardsPanel = document.getElementById('cardsPanel');
-    const suppliesPanel = document.getElementById('suppliesPanel');
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            const section = tab.getAttribute('data-section');
-            if (section === 'cards') {
-                cardsPanel.style.display = 'block';
-                suppliesPanel.style.display = 'none';
-            } else if (section === 'supplies') {
-                cardsPanel.style.display = 'none';
-                suppliesPanel.style.display = 'block';
-            }
-        });
-    });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
-    initSectionTabs();
-
     const cardManager = new CardManager();
     cardManager.init();
-
-    const suppliesManager = new SuppliesManager();
-    suppliesManager.init();
 });
