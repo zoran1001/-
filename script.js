@@ -20,6 +20,39 @@ try {
     console.warn('Supabase 初始化失败，将使用本地存储模式', e);
 }
 
+// camelCase -> snake_case: chineseName -> chinese_name, englishName -> english_name
+function camelToSnake(str) {
+    return str.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
+}
+
+// snake_case -> camelCase: chinese_name -> chineseName
+function snakeToCamel(str) {
+    return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// 转换整个对象的 key
+function keysToSnake(obj) {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(keysToSnake);
+    if (typeof obj !== 'object') return obj;
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+        result[camelToSnake(key)] = keysToSnake(value);
+    }
+    return result;
+}
+
+function keysToCamel(obj) {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(keysToCamel);
+    if (typeof obj !== 'object') return obj;
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+        result[snakeToCamel(key)] = keysToCamel(value);
+    }
+    return result;
+}
+
 const CloudStorage = {
     isAvailable() {
         return supabaseClient !== null;
@@ -50,7 +83,7 @@ const CloudStorage = {
                 .select('*')
                 .order('id');
             if (error) throw error;
-            return data;
+            return data ? data.map(keysToCamel) : [];
         } catch (e) {
             console.warn('从云端加载色卡失败', e);
             return null;
@@ -62,7 +95,7 @@ const CloudStorage = {
         try {
             const { error } = await supabaseClient
                 .from('cards')
-                .upsert(cards.map(card => ({
+                .upsert(cards.map(card => keysToSnake({
                     id: card.id,
                     category: card.category,
                     manufacturer: card.manufacturer,
@@ -85,7 +118,7 @@ const CloudStorage = {
         try {
             const { error } = await supabaseClient
                 .from('cards')
-                .insert({
+                .insert(keysToSnake({
                     id: card.id,
                     category: card.category,
                     manufacturer: card.manufacturer,
@@ -94,7 +127,7 @@ const CloudStorage = {
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config
-                });
+                }));
             if (error) throw error;
             return true;
         } catch (e) {
@@ -108,7 +141,7 @@ const CloudStorage = {
         try {
             const { error } = await supabaseClient
                 .from('cards')
-                .update({
+                .update(keysToSnake({
                     category: card.category,
                     manufacturer: card.manufacturer,
                     englishName: card.englishName,
@@ -116,7 +149,7 @@ const CloudStorage = {
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config
-                })
+                }))
                 .eq('id', card.id);
             if (error) throw error;
             return true;
