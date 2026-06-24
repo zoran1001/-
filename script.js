@@ -25,6 +25,23 @@ const CloudStorage = {
         return supabaseClient !== null;
     },
 
+    setStatus(status, text) {
+        const icon = document.getElementById('cloudIcon');
+        const textEl = document.getElementById('cloudText');
+        const statusEl = document.getElementById('cloudStatus');
+        if (!icon || !textEl || !statusEl) return;
+
+        statusEl.className = 'cloud-status ' + status;
+        if (status === 'connected') {
+            icon.textContent = '☁️';
+        } else if (status === 'disconnected') {
+            icon.textContent = '⚠️';
+        } else if (status === 'syncing') {
+            icon.textContent = '🔄';
+        }
+        textEl.textContent = text;
+    },
+
     async loadCards() {
         if (!this.isAvailable()) return null;
         try {
@@ -1059,7 +1076,12 @@ class CardManager {
     }
 
     async loadFromCloud() {
-        if (!CloudStorage.isAvailable()) return;
+        CloudStorage.setStatus('syncing', '正在同步云端数据...');
+
+        if (!CloudStorage.isAvailable()) {
+            CloudStorage.setStatus('disconnected', '未连接云端，使用本地存储');
+            return;
+        }
 
         try {
             const [cloudCards, cloudMaterials, cloudManufacturers, cloudTemplate] = await Promise.all([
@@ -1096,8 +1118,10 @@ class CardManager {
                 Storage.saveTemplate(this.template);
             }
 
+            CloudStorage.setStatus('connected', '已连接云端');
             console.log('云端数据同步完成');
         } catch (e) {
+            CloudStorage.setStatus('disconnected', '云端同步失败，使用本地存储');
             console.warn('从云端加载数据失败', e);
         }
     }

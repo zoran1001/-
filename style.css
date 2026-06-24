@@ -110,6 +110,66 @@ header p {
     font-weight: 400;
 }
 
+.cloud-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.cloud-status.connected {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.cloud-status.disconnected {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.cloud-status.syncing {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.cloud-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.cloud-status.syncing .cloud-icon {
+    animation: cloudPulse 1.5s ease-in-out infinite;
+}
+
+.cloud-text {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.cloud-status.connected .cloud-text {
+    color: var(--accent-success);
+}
+
+.cloud-status.disconnected .cloud-text {
+    color: var(--accent-danger);
+}
+
+.cloud-status.syncing .cloud-text {
+    color: var(--accent-primary);
+}
+
+@keyframes cloudPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); }
+}
+
 .category-nav {
     position: relative;
     display: flex;
