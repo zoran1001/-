@@ -1630,7 +1630,17 @@ class CardManager {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const cardManager = new CardManager();
-    cardManager.init();
+window.addEventListener('load', () => {
+    try {
+        if (window.supabase && typeof window.supabase.createClient === 'function' && supabase === null) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('Supabase 初始化成功');
+        }
+        
+        const cardManager = new CardManager();
+        cardManager.init();
+    } catch (e) {
+        console.error('初始化失败:', e);
+        alert('页面初始化出现问题，请刷新重试');
+    }
 });

@@ -254,7 +254,7 @@ header p {
 
 .add-btn {
     position: relative;
-    padding: 10px 20px 10px 44px;
+    padding: 10px 22px;
     border: 1.5px solid rgba(34, 197, 94, 0.3);
     border-radius: var(--radius-full);
     color: #22c55e;
@@ -272,25 +272,10 @@ header p {
     overflow: hidden;
 }
 
-.add-btn::before {
-    content: '';
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    transition: all var(--transition-normal);
-    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
-}
-
 .add-btn svg {
     position: relative;
     z-index: 1;
-    margin-left: -2px;
-    color: white;
+    color: #22c55e;
 }
 
 .add-btn:hover {
@@ -301,9 +286,8 @@ header p {
     box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
 }
 
-.add-btn:hover::before {
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
+.add-btn:hover svg {
+    color: white;
 }
 
 .add-btn:active {
@@ -312,7 +296,7 @@ header p {
 
 .template-btn {
     position: relative;
-    padding: 10px 20px 10px 44px;
+    padding: 10px 22px;
     border: 1.5px solid rgba(168, 85, 247, 0.3);
     border-radius: var(--radius-full);
     color: #a855f7;
@@ -330,25 +314,10 @@ header p {
     overflow: hidden;
 }
 
-.template-btn::before {
-    content: '';
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #a855f7, #9333ea);
-    transition: all var(--transition-normal);
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
-}
-
 .template-btn svg {
     position: relative;
     z-index: 1;
-    margin-left: -2px;
-    color: white;
+    color: #a855f7;
 }
 
 .template-btn:hover {
@@ -359,9 +328,8 @@ header p {
     box-shadow: 0 6px 20px rgba(168, 85, 247, 0.35);
 }
 
-.template-btn:hover::before {
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
+.template-btn:hover svg {
+    color: white;
 }
 
 .template-btn:active {
@@ -370,7 +338,7 @@ header p {
 
 .admin-btn {
     position: relative;
-    padding: 10px 20px 10px 44px;
+    padding: 10px 22px;
     border: 1.5px solid rgba(245, 158, 11, 0.3);
     border-radius: var(--radius-full);
     color: #f59e0b;
@@ -388,25 +356,10 @@ header p {
     overflow: hidden;
 }
 
-.admin-btn::before {
-    content: '';
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    transition: all var(--transition-normal);
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-}
-
 .admin-btn svg {
     position: relative;
     z-index: 1;
-    margin-left: -2px;
-    color: white;
+    color: #f59e0b;
 }
 
 .admin-btn:hover {
@@ -417,9 +370,8 @@ header p {
     box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
 }
 
-.admin-btn:hover::before {
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
+.admin-btn:hover svg {
+    color: white;
 }
 
 .admin-btn:active {
