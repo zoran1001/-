@@ -9,11 +9,11 @@ const CURRENT_VERSION = '2.0';
 const SUPABASE_URL = 'https://xgalutaglwryurdmwbpl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnYWx1dGFnbHdyeXVyZG13YnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTM3MTksImV4cCI6MjA5NzgyOTcxOX0.CfJ5kjGHI2_np7nUfl8O12-xBC2T8mj_xsEl-fG_NJc';
 
-let supabase = null;
+let supabaseClient = null;
 
 try {
     if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log('Supabase 初始化成功');
     }
 } catch (e) {
@@ -22,13 +22,13 @@ try {
 
 const CloudStorage = {
     isAvailable() {
-        return supabase !== null;
+        return supabaseClient !== null;
     },
 
     async loadCards() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('cards')
                 .select('*')
                 .order('id');
@@ -43,7 +43,7 @@ const CloudStorage = {
     async saveCards(cards) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('cards')
                 .upsert(cards.map(card => ({
                     id: card.id,
@@ -66,7 +66,7 @@ const CloudStorage = {
     async addCard(card) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('cards')
                 .insert({
                     id: card.id,
@@ -89,7 +89,7 @@ const CloudStorage = {
     async updateCard(card) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('cards')
                 .update({
                     category: card.category,
@@ -112,7 +112,7 @@ const CloudStorage = {
     async deleteCard(cardId) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('cards')
                 .delete()
                 .eq('id', cardId);
@@ -127,7 +127,7 @@ const CloudStorage = {
     async loadMaterials() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('materials')
                 .select('name')
                 .order('name');
@@ -142,7 +142,7 @@ const CloudStorage = {
     async addMaterial(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('materials')
                 .insert({ name });
             if (error) throw error;
@@ -156,7 +156,7 @@ const CloudStorage = {
     async deleteMaterial(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('materials')
                 .delete()
                 .eq('name', name);
@@ -171,7 +171,7 @@ const CloudStorage = {
     async loadManufacturers() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('manufacturers')
                 .select('name')
                 .order('name');
@@ -186,7 +186,7 @@ const CloudStorage = {
     async addManufacturer(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('manufacturers')
                 .insert({ name });
             if (error) throw error;
@@ -200,7 +200,7 @@ const CloudStorage = {
     async deleteManufacturer(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('manufacturers')
                 .delete()
                 .eq('name', name);
@@ -215,7 +215,7 @@ const CloudStorage = {
     async loadTemplate() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('template')
                 .select('*')
                 .single();
@@ -235,7 +235,7 @@ const CloudStorage = {
         try {
             const existing = await this.loadTemplate();
             if (existing && existing.id) {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('template')
                     .update({
                         manufacturer: template.manufacturer,
@@ -245,7 +245,7 @@ const CloudStorage = {
                     .eq('id', existing.id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('template')
                     .insert({
                         manufacturer: template.manufacturer,
