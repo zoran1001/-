@@ -1224,6 +1224,8 @@ const SuppliesCloud = {
                     id: s.id,
                     color: s.color,
                     manufacturer: s.manufacturer,
+                    texture: s.texture,
+                    material: s.material,
                     quantity: s.quantity,
                     price: s.price
                 })));
@@ -1244,6 +1246,8 @@ const SuppliesCloud = {
                     id: supply.id,
                     color: supply.color,
                     manufacturer: supply.manufacturer,
+                    texture: supply.texture,
+                    material: supply.material,
                     quantity: supply.quantity,
                     price: supply.price
                 }));
@@ -1263,6 +1267,8 @@ const SuppliesCloud = {
                 .update(keysToSnake({
                     color: supply.color,
                     manufacturer: supply.manufacturer,
+                    texture: supply.texture,
+                    material: supply.material,
                     quantity: supply.quantity,
                     price: supply.price
                 }))
@@ -1358,6 +1364,8 @@ class SuppliesManager {
         document.getElementById('supplyId').value = supply.id;
         document.getElementById('supplyColor').value = supply.color;
         document.getElementById('supplyManufacturer').value = supply.manufacturer;
+        document.getElementById('supplyTexture').value = supply.texture || '';
+        document.getElementById('supplyMaterial').value = supply.material || '';
         document.getElementById('supplyQuantity').value = supply.quantity;
         document.getElementById('supplyPrice').value = supply.price || '';
         this.supplyModal.style.display = 'block';
@@ -1374,10 +1382,12 @@ class SuppliesManager {
 
         const color = document.getElementById('supplyColor').value;
         const manufacturer = document.getElementById('supplyManufacturer').value.trim();
+        const texture = document.getElementById('supplyTexture').value.trim();
+        const material = document.getElementById('supplyMaterial').value.trim();
         const quantity = parseInt(document.getElementById('supplyQuantity').value, 10);
         const price = parseFloat(document.getElementById('supplyPrice').value);
 
-        if (!color || !manufacturer || isNaN(quantity) || isNaN(price)) {
+        if (!color || !manufacturer || !texture || !material || isNaN(quantity) || isNaN(price)) {
             alert('请填写所有必填项');
             return;
         }
@@ -1385,11 +1395,11 @@ class SuppliesManager {
         if (this.currentEditingId !== null) {
             const index = this.supplies.findIndex(s => s.id === this.currentEditingId);
             if (index !== -1) {
-                this.supplies[index] = { ...this.supplies[index], color, manufacturer, quantity, price };
+                this.supplies[index] = { ...this.supplies[index], color, manufacturer, texture, material, quantity, price };
                 SuppliesCloud.updateSupply(this.supplies[index]);
             }
         } else {
-            const newSupply = { id: Date.now(), color, manufacturer, quantity, price };
+            const newSupply = { id: Date.now(), color, manufacturer, texture, material, quantity, price };
             this.supplies.push(newSupply);
             SuppliesCloud.addSupply(newSupply);
         }
@@ -1449,6 +1459,8 @@ class SuppliesManager {
                         </span>
                     </td>
                     <td data-label="厂商"><span class="supply-manufacturer">${supply.manufacturer}</span></td>
+                    <td data-label="材质"><span>${supply.texture || '-'}</span></td>
+                    <td data-label="材料"><span>${supply.material || '-'}</span></td>
                     <td data-label="数量"><span class="supply-quantity ${qtyClass}">${supply.quantity}</span></td>
                     <td data-label="价格"><span class="supply-price">¥${(supply.price || 0).toFixed(2)}</span></td>
                     <td data-label="操作">
@@ -1466,6 +1478,8 @@ class SuppliesManager {
                     <tr>
                         <th>颜色</th>
                         <th>厂商</th>
+                        <th>材质</th>
+                        <th>材料</th>
                         <th>数量</th>
                         <th>价格</th>
                         <th>操作</th>
