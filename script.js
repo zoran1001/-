@@ -699,6 +699,11 @@ class CardManager {
         document.getElementById('newManufacturerInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.handleAddAdminItem('newManufacturerInput', 'manufacturer');
         });
+
+        // Low stock warning dismiss
+        document.getElementById('lowStockDismiss').addEventListener('click', () => {
+            document.getElementById('lowStockWarning').classList.remove('show');
+        });
     }
 
     handleImageUpload(e, previewId) {
@@ -787,6 +792,21 @@ class CardManager {
         this.renderAdminList(type);
     }
 
+    checkLowStock() {
+        const warning = document.getElementById('lowStockWarning');
+        const text = document.getElementById('lowStockText');
+        const lowCards = this.cards.filter(c => (c.quantity || 0) <= 1);
+
+        if (lowCards.length === 0) {
+            warning.classList.remove('show');
+            return;
+        }
+
+        const names = lowCards.map(c => `「${c.chineseName}」(${c.quantity || 0}件)`).join('、');
+        text.innerHTML = `<strong>${lowCards.length} 张色卡库存不足！</strong><br><span class="low-stock-items">${names}</span>`;
+        warning.classList.add('show');
+    }
+
     renderCards(cards = this.cards) {
         this.cardsContainer.innerHTML = '';
 
@@ -828,7 +848,7 @@ class CardManager {
                         </div>
                         <div class="info-item">
                             <div class="info-label">库存</div>
-                            <div class="info-value">${card.quantity || 0} 件</div>
+                            <div class="info-value${(card.quantity || 0) <= 1 ? ' low-stock' : ''}">${card.quantity || 0} 件</div>
                         </div>
                     </div>
                     <div class="card-config">
@@ -857,6 +877,8 @@ class CardManager {
                 this.showEdit(cardId);
             });
         });
+
+        this.checkLowStock();
     }
 
     showDetail(cardId) {
@@ -1111,6 +1133,7 @@ class CardManager {
             const filteredCards = this.cards.filter(card => card.category === category);
             this.renderCards(filteredCards);
         }
+        this.checkLowStock();
     }
 
     init() {
