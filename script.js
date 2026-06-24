@@ -1224,7 +1224,8 @@ const SuppliesCloud = {
                     id: s.id,
                     color: s.color,
                     manufacturer: s.manufacturer,
-                    quantity: s.quantity
+                    quantity: s.quantity,
+                    price: s.price
                 })));
             if (error) throw error;
             return true;
@@ -1243,7 +1244,8 @@ const SuppliesCloud = {
                     id: supply.id,
                     color: supply.color,
                     manufacturer: supply.manufacturer,
-                    quantity: supply.quantity
+                    quantity: supply.quantity,
+                    price: supply.price
                 }));
             if (error) throw error;
             return true;
@@ -1261,7 +1263,8 @@ const SuppliesCloud = {
                 .update(keysToSnake({
                     color: supply.color,
                     manufacturer: supply.manufacturer,
-                    quantity: supply.quantity
+                    quantity: supply.quantity,
+                    price: supply.price
                 }))
                 .eq('id', supply.id);
             if (error) throw error;
@@ -1356,6 +1359,7 @@ class SuppliesManager {
         document.getElementById('supplyColor').value = supply.color;
         document.getElementById('supplyManufacturer').value = supply.manufacturer;
         document.getElementById('supplyQuantity').value = supply.quantity;
+        document.getElementById('supplyPrice').value = supply.price || '';
         this.supplyModal.style.display = 'block';
     }
 
@@ -1371,8 +1375,9 @@ class SuppliesManager {
         const color = document.getElementById('supplyColor').value;
         const manufacturer = document.getElementById('supplyManufacturer').value.trim();
         const quantity = parseInt(document.getElementById('supplyQuantity').value, 10);
+        const price = parseFloat(document.getElementById('supplyPrice').value);
 
-        if (!color || !manufacturer || isNaN(quantity)) {
+        if (!color || !manufacturer || isNaN(quantity) || isNaN(price)) {
             alert('请填写所有必填项');
             return;
         }
@@ -1380,11 +1385,11 @@ class SuppliesManager {
         if (this.currentEditingId !== null) {
             const index = this.supplies.findIndex(s => s.id === this.currentEditingId);
             if (index !== -1) {
-                this.supplies[index] = { ...this.supplies[index], color, manufacturer, quantity };
+                this.supplies[index] = { ...this.supplies[index], color, manufacturer, quantity, price };
                 SuppliesCloud.updateSupply(this.supplies[index]);
             }
         } else {
-            const newSupply = { id: Date.now(), color, manufacturer, quantity };
+            const newSupply = { id: Date.now(), color, manufacturer, quantity, price };
             this.supplies.push(newSupply);
             SuppliesCloud.addSupply(newSupply);
         }
@@ -1445,6 +1450,7 @@ class SuppliesManager {
                     </td>
                     <td data-label="厂商"><span class="supply-manufacturer">${supply.manufacturer}</span></td>
                     <td data-label="数量"><span class="supply-quantity ${qtyClass}">${supply.quantity}</span></td>
+                    <td data-label="价格"><span class="supply-price">¥${(supply.price || 0).toFixed(2)}</span></td>
                     <td data-label="操作">
                         <div class="supply-actions">
                             <button class="supply-action-btn edit" data-edit="${supply.id}">编辑</button>
@@ -1461,6 +1467,7 @@ class SuppliesManager {
                         <th>颜色</th>
                         <th>厂商</th>
                         <th>数量</th>
+                        <th>价格</th>
                         <th>操作</th>
                     </tr>
                 </thead>
