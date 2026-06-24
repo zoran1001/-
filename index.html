@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>色卡管理工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>色卡管理工具</h1>
+        <p>按颜色分类浏览色卡</p>
+    </header>
+
+    <nav class="category-nav" role="navigation" aria-label="颜色分类导航">
+        <button class="category-btn active" data-category="all" type="button">全部</button>
+        <button class="category-btn" data-category="red" type="button">赤色</button>
+        <button class="category-btn" data-category="orange" type="button">橙色</button>
+        <button class="category-btn" data-category="yellow" type="button">黄色</button>
+        <button class="category-btn" data-category="green" type="button">绿色</button>
+        <button class="category-btn" data-category="cyan" type="button">青色</button>
+        <button class="category-btn" data-category="blue" type="button">蓝色</button>
+        <button class="category-btn" data-category="purple" type="button">紫色</button>
+        <button class="category-btn" data-category="black" type="button">黑色</button>
+        <button class="category-btn" data-category="white" type="button">白色</button>
+        <button class="category-btn" data-category="gray" type="button">灰色</button>
+        <div class="nav-divider"></div>
+        <button class="add-btn" id="addCardBtn" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加色卡
+        </button>
+        <button class="template-btn" id="templateBtn" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            模板
+        </button>
+        <button class="admin-btn" id="adminBtn" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            后台管理
+        </button>
+        <div class="nav-divider"></div>
+        <div class="size-switcher">
+            <button class="size-btn active" data-size="small" type="button" title="小尺寸">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </button>
+            <button class="size-btn" data-size="medium" type="button" title="中尺寸">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/></svg>
+            </button>
+            <button class="size-btn" data-size="large" type="button" title="大尺寸">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <main role="main">
+        <section class="cards-section">
+            <h2>📦 色卡列表</h2>
+            <div class="cards-container" id="cardsContainer" role="list"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>色卡管理工具 © 2024</p>
+    </footer>
+
+    <div class="modal" id="addCardModal" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <button class="close-btn" id="closeModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>添加新色卡</h2>
+            <form id="addCardForm" novalidate>
+                <div class="form-group">
+                    <label for="chineseName">中文名</label>
+                    <input type="text" id="chineseName" name="chineseName" required placeholder="请输入中文名">
+                </div>
+                <div class="form-group">
+                    <label for="englishName">英文名</label>
+                    <input type="text" id="englishName" name="englishName" required placeholder="请输入英文名">
+                </div>
+                <div class="form-group">
+                    <label for="manufacturer">产商</label>
+                    <div class="combobox" id="manufacturerCombobox">
+                        <div class="combobox-input-wrapper">
+                            <input type="text" id="manufacturer" name="manufacturer" class="combobox-input" placeholder="请选择产商" autocomplete="off" required readonly>
+                            <button type="button" class="combobox-toggle" id="manufacturerToggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                        </div>
+                        <div class="combobox-dropdown" id="manufacturerDropdown">
+                            <div class="combobox-list" id="manufacturerList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="material">材料</label>
+                    <div class="combobox" id="materialCombobox">
+                        <div class="combobox-input-wrapper">
+                            <input type="text" id="material" name="material" class="combobox-input" placeholder="请选择材料" autocomplete="off" required readonly>
+                            <button type="button" class="combobox-toggle" id="materialToggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                        </div>
+                        <div class="combobox-dropdown" id="materialDropdown">
+                            <div class="combobox-list" id="materialList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="category">颜色分类</label>
+                    <select id="category" name="category" required>
+                        <option value="">请选择颜色分类</option>
+                        <option value="red">赤色</option>
+                        <option value="orange">橙色</option>
+                        <option value="yellow">黄色</option>
+                        <option value="green">绿色</option>
+                        <option value="cyan">青色</option>
+                        <option value="blue">蓝色</option>
+                        <option value="purple">紫色</option>
+                        <option value="black">黑色</option>
+                        <option value="white">白色</option>
+                        <option value="gray">灰色</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="imageUpload">色卡图片</label>
+                    <input type="file" id="imageUpload" name="imageUpload" accept="image/*">
+                    <div id="imagePreview"></div>
+                </div>
+                <div class="form-group">
+                    <label>配置信息</label>
+                    <div id="addConfigContainer">
+                        <div class="config-item">
+                            <input type="text" class="config-key" name="configKey[]" placeholder="配置项名称" value="流量比">
+                            <input type="text" class="config-value" name="configValue[]" placeholder="配置值">
+                            <button type="button" class="remove-config-btn" style="display: none;">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-config-btn" id="addConfigBtn">+ 添加配置项</button>
+                </div>
+                <button type="submit" class="submit-btn">添加</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="editCardModal" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <button class="close-btn" id="closeEditModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>编辑色卡</h2>
+            <form id="editCardForm" novalidate>
+                <input type="hidden" id="editCardId" name="editCardId">
+                <div class="form-group">
+                    <label for="editChineseName">中文名</label>
+                    <input type="text" id="editChineseName" name="editChineseName" required placeholder="请输入中文名">
+                </div>
+                <div class="form-group">
+                    <label for="editEnglishName">英文名</label>
+                    <input type="text" id="editEnglishName" name="editEnglishName" required placeholder="请输入英文名">
+                </div>
+                <div class="form-group">
+                    <label for="editManufacturer">产商</label>
+                    <div class="combobox" id="editManufacturerCombobox">
+                        <div class="combobox-input-wrapper">
+                            <input type="text" id="editManufacturer" name="editManufacturer" class="combobox-input" placeholder="请选择产商" autocomplete="off" required readonly>
+                            <button type="button" class="combobox-toggle" id="editManufacturerToggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                        </div>
+                        <div class="combobox-dropdown" id="editManufacturerDropdown">
+                            <div class="combobox-list" id="editManufacturerList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editMaterial">材料</label>
+                    <div class="combobox" id="editMaterialCombobox">
+                        <div class="combobox-input-wrapper">
+                            <input type="text" id="editMaterial" name="editMaterial" class="combobox-input" placeholder="请选择材料" autocomplete="off" required readonly>
+                            <button type="button" class="combobox-toggle" id="editMaterialToggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                        </div>
+                        <div class="combobox-dropdown" id="editMaterialDropdown">
+                            <div class="combobox-list" id="editMaterialList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editCategory">颜色分类</label>
+                    <select id="editCategory" name="editCategory" required>
+                        <option value="">请选择颜色分类</option>
+                        <option value="red">赤色</option>
+                        <option value="orange">橙色</option>
+                        <option value="yellow">黄色</option>
+                        <option value="green">绿色</option>
+                        <option value="cyan">青色</option>
+                        <option value="blue">蓝色</option>
+                        <option value="purple">紫色</option>
+                        <option value="black">黑色</option>
+                        <option value="white">白色</option>
+                        <option value="gray">灰色</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editImageUpload">色卡图片</label>
+                    <input type="file" id="editImageUpload" name="editImageUpload" accept="image/*">
+                    <div id="editImagePreview"></div>
+                    <div id="editCurrentImage"></div>
+                </div>
+                <div class="form-group">
+                    <label>配置信息</label>
+                    <div id="editConfigContainer">
+                        <div class="config-item">
+                            <input type="text" class="config-key" name="editConfigKey[]" placeholder="配置项名称">
+                            <input type="text" class="config-value" name="editConfigValue[]" placeholder="配置值">
+                            <button type="button" class="remove-config-btn">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-config-btn" id="editAddConfigBtn">+ 添加配置项</button>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn">保存</button>
+                    <button type="button" class="delete-btn" id="deleteCardBtn">删除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="detailCardModal" role="dialog" aria-modal="true">
+        <div class="modal-content detail-modal">
+            <button class="close-btn" id="closeDetailModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <div class="detail-header">
+                <div id="detailColorPreview"></div>
+                <div class="detail-title-area">
+                    <h2 id="detailChineseName"></h2>
+                    <p id="detailEnglishName"></p>
+                </div>
+            </div>
+            <div class="detail-info">
+                <div class="detail-item">
+                    <span class="detail-label">产商：</span>
+                    <span id="detailManufacturer"></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">材料：</span>
+                    <span id="detailMaterial"></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">颜色分类：</span>
+                    <span id="detailCategory"></span>
+                </div>
+                <div class="detail-item full-width">
+                    <span class="detail-label">配置信息：</span>
+                    <span id="detailConfig"></span>
+                </div>
+            </div>
+            <button type="button" class="edit-detail-btn" id="editDetailBtn">编辑</button>
+        </div>
+    </div>
+
+    <div class="modal" id="editTemplateModal" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <button class="close-btn" id="closeTemplateModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>编辑模板配置</h2>
+            <p class="warning-text">修改模板配置将应用到所有色卡！</p>
+            <form id="editTemplateForm" novalidate>
+                <div class="form-group">
+                    <label for="templateManufacturer">产商</label>
+                    <input type="text" id="templateManufacturer" name="templateManufacturer" placeholder="模板产商（留空不修改）">
+                </div>
+                <div class="form-group">
+                    <label for="templateMaterial">材料</label>
+                    <input type="text" id="templateMaterial" name="templateMaterial" placeholder="模板材料（留空不修改）">
+                </div>
+                <div class="form-group">
+                    <label>配置信息</label>
+                    <div id="templateConfigContainer">
+                        <div class="config-item">
+                            <input type="text" class="config-key" name="templateConfigKey[]" placeholder="配置项名称">
+                            <input type="text" class="config-value" name="templateConfigValue[]" placeholder="配置值">
+                            <button type="button" class="remove-config-btn">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-config-btn" id="templateAddConfigBtn">+ 添加配置项</button>
+                </div>
+                <button type="submit" class="submit-btn">应用到所有色卡</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="adminModal" role="dialog" aria-modal="true">
+        <div class="modal-content admin-modal">
+            <button class="close-btn" id="closeAdminModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>后台管理</h2>
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="materials" type="button">材料管理</button>
+                <button class="admin-tab" data-tab="manufacturers" type="button">厂商管理</button>
+            </div>
+            
+            <div class="admin-tab-content" id="adminMaterialsTab">
+                <div class="admin-add-section">
+                    <input type="text" id="newMaterialInput" placeholder="输入新材料名称" autocomplete="off">
+                    <button type="button" class="admin-add-btn" id="addNewMaterialBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        添加材料
+                    </button>
+                </div>
+                <div class="admin-list" id="materialsList"></div>
+            </div>
+            
+            <div class="admin-tab-content hidden" id="adminManufacturersTab">
+                <div class="admin-add-section">
+                    <input type="text" id="newManufacturerInput" placeholder="输入新厂商名称" autocomplete="off">
+                    <button type="button" class="admin-add-btn" id="addNewManufacturerBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        添加厂商
+                    </button>
+                </div>
+                <div class="admin-list" id="manufacturersList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
