@@ -646,6 +646,8 @@ class CardManager {
         this.cardsContainer = document.getElementById('cardsContainer');
         this.modalManager = new ModalManager();
         this.materialManager = new MaterialManager();
+        this.lowStockDismissed = false;  // 用户是否已手动关闭警告
+        this.cloudSyncCompleted = false; // 云端同步是否已完成
         this.bindEvents();
     }
 
@@ -702,6 +704,7 @@ class CardManager {
 
         // Low stock warning dismiss
         document.getElementById('lowStockDismiss').addEventListener('click', () => {
+            this.lowStockDismissed = true;
             document.getElementById('lowStockWarning').classList.remove('show');
         });
     }
@@ -795,15 +798,32 @@ class CardManager {
     checkLowStock() {
         const warning = document.getElementById('lowStockWarning');
         const text = document.getElementById('lowStockText');
-        const lowCards = this.cards.filter(c => (c.quantity || 0) <= 1);
+        if (!warning || !text) return;
+
+        // 只检查 quantity 字段明确存在的卡片（排除云端未同步该字段的情况）
+        const lowCards = this.cards.filter(c => {
+            const qty = c.quantity;
+            // quantity 为 undefined/null 说明字段不存在，不触发警告
+            if (qty === undefined || qty === null) return false;
+            return qty <= 1;
+        });
 
         if (lowCards.length === 0) {
             warning.classList.remove('show');
+            this.lowStockDismissed = false;
             return;
         }
 
-        const names = lowCards.map(c => `「${c.chineseName}」(${c.quantity || 0}件)`).join('、');
-        text.innerHTML = `<strong>${lowCards.length} 张色卡库存不足！</strong><br><span class="low-stock-items">${names}</span>`;
+        // 如果用户已手动关闭，不再自动弹出（除非库存状态发生变化）
+        if (this.lowStockDismissed) return;
+
+        const names = lowCards.map(c => {
+            const name = c.chineseName || '未命名';
+            const qty = c.quantity || 0;
+            return `「${name}」库存仅 ${qty} 件`;
+        }).join('；');
+
+        text.innerHTML = `<strong>⚠ 库存预警：</strong>${names}`;
         warning.classList.add('show');
     }
 
@@ -1133,7 +1153,6 @@ class CardManager {
             const filteredCards = this.cards.filter(card => card.category === category);
             this.renderCards(filteredCards);
         }
-        this.checkLowStock();
     }
 
     init() {
@@ -1148,6 +1167,7 @@ class CardManager {
 
         if (!CloudStorage.isAvailable()) {
             CloudStorage.setStatus('disconnected', '未连接云端，使用本地存储');
+            this.cloudSyncCompleted = true;
             return;
         }
 
@@ -1159,10 +1179,13 @@ class CardManager {
                 CloudStorage.loadTemplate()
             ]);
 
-            if (cloudCards && cloudCards.length > 0) {
+            // 只在首次加载时用云端数据覆盖本地（避免覆盖用户正在编辑的数据）
+            if (!this.cloudSyncCompleted && cloudCards && cloudCards.length > 0) {
                 this.cards = cloudCards;
                 Storage.saveCards(this.cards);
-                this.renderCards();
+            } else if (cloudCards && cloudCards.length === 0 && this.cards.length > 0) {
+                // 本地有数据但云端为空，推送到云端
+                CloudStorage.saveCards(this.cards);
             }
 
             if (cloudMaterials && cloudMaterials.length > 0) {
@@ -1186,9 +1209,12 @@ class CardManager {
                 Storage.saveTemplate(this.template);
             }
 
+            this.cloudSyncCompleted = true;
+            this.renderCards();
             CloudStorage.setStatus('connected', '已连接云端');
             console.log('云端数据同步完成');
         } catch (e) {
+            this.cloudSyncCompleted = true;
             CloudStorage.setStatus('disconnected', '云端同步失败，使用本地存储');
             console.warn('从云端加载数据失败', e);
         }

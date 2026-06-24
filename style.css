@@ -1852,8 +1852,9 @@ footer {
     align-items: center;
     gap: 12px;
     padding: 14px 20px;
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(245, 158, 11, 0.08));
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    min-height: 52px;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1));
+    border: 1px solid rgba(239, 68, 68, 0.3);
     border-left: 4px solid var(--accent-danger);
     border-radius: var(--radius-md);
     flex-wrap: wrap;
@@ -1874,18 +1875,14 @@ footer {
     flex: 1;
     min-width: 200px;
     font-size: 0.9rem;
-    color: var(--text-primary);
+    color: #b91c1c;
     line-height: 1.6;
+    font-weight: 500;
 }
 
 .low-stock-text strong {
     color: var(--accent-danger);
-}
-
-.low-stock-items {
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    margin-top: 4px;
+    font-weight: 700;
 }
 
 .low-stock-dismiss {
