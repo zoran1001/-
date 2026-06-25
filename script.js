@@ -723,6 +723,7 @@ class CardManager {
         this.selectedCards = new Set();  // 批量选中的卡片 ID
         this.stockLogManager = new StockLogManager();
         this.bindEvents();
+        this.setupDelegatedEvents();
     }
 
     bindEvents() {
@@ -875,6 +876,36 @@ class CardManager {
         window.addEventListener('click', (e) => {
             if (e.target === document.getElementById('stockLogModal')) {
                 this.closeStockLog();
+            }
+        });
+    }
+
+    setupDelegatedEvents() {
+        // 用事件委托处理卡片按钮点击，避免每次 renderCards 都重新绑定
+        this.cardsContainer.addEventListener('click', (e) => {
+            // 查看按钮
+            const viewBtn = e.target.closest('.card-action-btn.view');
+            if (viewBtn) {
+                if (this.batchMode) { e.preventDefault(); return; }
+                const cardId = parseInt(viewBtn.getAttribute('data-id'));
+                this.showDetail(cardId);
+                return;
+            }
+            // 编辑按钮
+            const editBtn = e.target.closest('.card-action-btn.edit');
+            if (editBtn) {
+                if (this.batchMode) { e.preventDefault(); return; }
+                const cardId = parseInt(editBtn.getAttribute('data-id'));
+                this.showEdit(cardId);
+                return;
+            }
+            // 批量复选框
+            const checkDiv = e.target.closest('.card-check');
+            if (checkDiv && this.batchMode) {
+                e.stopPropagation();
+                const cardId = parseInt(checkDiv.getAttribute('data-id'));
+                this.toggleCardSelect(cardId);
+                return;
             }
         });
     }
@@ -1055,6 +1086,15 @@ class CardManager {
         }
         this.updateBatchCount();
         this.updateSelectAllBtn();
+        // 增量更新单个复选框样式，避免全量重渲染
+        const checkEl = document.querySelector(`.card-check[data-id="${cardId}"]`);
+        if (checkEl) {
+            const checkbox = checkEl.querySelector('.card-checkbox');
+            if (checkbox) checkbox.classList.toggle('checked', this.selectedCards.has(cardId));
+        }
+        // 更新卡片 selected 状态
+        const cardEl = document.querySelector(`.card[data-id="${cardId}"]`);
+        if (cardEl) cardEl.classList.toggle('selected', this.selectedCards.has(cardId));
     }
 
     updateBatchCount() {
@@ -1450,7 +1490,7 @@ class CardManager {
         } else {
             // 创建新色卡
             const newCard = {
-                id: Date.now().toString(),
+                id: Date.now(),
                 chineseName,
                 englishName: englishName || '',
                 manufacturer: manufacturer || '',
@@ -1497,7 +1537,10 @@ class CardManager {
         cards.forEach(card => {
             const cardElement = document.createElement('div');
             cardElement.className = 'card';
+            cardElement.setAttribute('data-id', card.id);
             if (this.batchMode && this.selectedCards.has(card.id)) {
+                cardElement.classList.add('selected');
+            }
                 cardElement.classList.add('selected');
             }
             cardElement.setAttribute('role', 'listitem');
@@ -1547,38 +1590,6 @@ class CardManager {
                 </div>
             `;
             this.cardsContainer.appendChild(cardElement);
-        });
-
-        document.querySelectorAll('.card-action-btn.view').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (this.batchMode) {
-                    e.preventDefault();
-                    return;
-                }
-                const cardId = parseInt(e.target.getAttribute('data-id'));
-                this.showDetail(cardId);
-            });
-        });
-
-        document.querySelectorAll('.card-action-btn.edit').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (this.batchMode) {
-                    e.preventDefault();
-                    return;
-                }
-                const cardId = parseInt(e.target.getAttribute('data-id'));
-                this.showEdit(cardId);
-            });
-        });
-
-        // 批量模式：复选框事件
-        document.querySelectorAll('.card-check').forEach(check => {
-            check.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const cardId = parseInt(check.getAttribute('data-id'));
-                this.toggleCardSelect(cardId);
-                this.applyFilters();
-            });
         });
 
         this.checkLowStock();
@@ -1717,7 +1728,7 @@ class CardManager {
                 this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
             }
             Storage.saveCards(this.cards);
-            CloudStorage.addCard(newCard);
+            CloudStorage.addCard(keysToSnake(newCard));
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
