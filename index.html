@@ -7,15 +7,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- ===== 低库存警告 ===== -->
-    <div class="low-stock-warning" id="lowStockWarning">
-        <div class="low-stock-inner">
-            <span class="low-stock-icon">⚠️</span>
-            <span class="low-stock-text" id="lowStockText"></span>
-            <button class="low-stock-dismiss" id="lowStockDismiss" type="button">知道了</button>
-        </div>
-    </div>
-
     <!-- ===== 应用整体布局 ===== -->
     <div class="app-layout">
 
@@ -97,6 +88,15 @@
 
         <!-- ===== 主内容区 ===== -->
         <div class="main-area">
+
+            <!-- ===== 低库存警告（文档流内，推开下方内容） ===== -->
+            <div class="low-stock-warning" id="lowStockWarning">
+                <div class="low-stock-inner">
+                    <span class="low-stock-icon">⚠️</span>
+                    <span class="low-stock-text" id="lowStockText"></span>
+                    <button class="low-stock-dismiss" id="lowStockDismiss" type="button">知道了</button>
+                </div>
+            </div>
 
             <!-- 顶部导航栏 -->
             <header class="topbar">

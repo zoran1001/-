@@ -1466,12 +1466,8 @@ footer {
 /* ===== 低库存警告 ===== */
 .low-stock-warning {
     display: none;
-    position: fixed;
-    top: 56px;
-    left: 200px;
-    right: 0;
-    z-index: 20;
     padding: 0 20px;
+    flex-shrink: 0;
     animation: warningSlideIn 0.4s ease;
 }
 
