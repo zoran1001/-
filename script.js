@@ -834,6 +834,53 @@ class UndoManager {
     }
 }
 
+// ===== 图片预处理工具（提升 OCR 准确率）=====
+const ImagePreprocessor = {
+    // 将 base64 图片预处理后返回新的 base64
+    async preprocess(dataUrl) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                // 放大图片（Tesseract 对大尺寸图片识别更好）
+                const scale = Math.max(1, 1200 / Math.max(img.width, img.height));
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+
+                // 白色背景
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, w, h);
+
+                // 绘制原图
+                ctx.drawImage(img, 0, 0, w, h);
+
+                // 获取像素数据进行灰度化 + 二值化
+                const imageData = ctx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    // 灰度化（加权平均）
+                    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    // 二值化（阈值 128）
+                    const val = gray > 128 ? 255 : 0;
+                    data[i] = val;
+                    data[i + 1] = val;
+                    data[i + 2] = val;
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = () => resolve(dataUrl); // 失败则返回原图
+            img.src = dataUrl;
+        });
+    }
+};
+
 class CardManager {
     constructor() {
         this.cards = Storage.loadCards();
@@ -1471,30 +1518,59 @@ class CardManager {
         // 显示进度条
         document.getElementById('scanProgress').style.display = 'block';
         document.getElementById('scanInitialActions').style.display = 'none';
-        document.getElementById('scanProgressText').textContent = '正在初始化 OCR 引擎...';
-        document.getElementById('scanProgressFill').style.width = '10%';
+        document.getElementById('scanProgressText').textContent = '正在预处理图片...';
+        document.getElementById('scanProgressFill').style.width = '5%';
 
         try {
-            // 使用 Tesseract.js 进行 OCR 识别
-            const result = await Tesseract.recognize(
-                this.scanImageData,
-                'chi_sim+eng', // 中文简体 + 英文
+            // 1. 图片预处理（灰度化+二值化+放大）
+            const processedImage = await ImagePreprocessor.preprocess(this.scanImageData);
+            document.getElementById('scanProgressFill').style.width = '10%';
+            document.getElementById('scanProgressText').textContent = '正在初始化 OCR 引擎...';
+
+            // 2. 优先用英文识别（标签多为英文），置信度低时回退中文
+            let result = await Tesseract.recognize(
+                processedImage,
+                'eng',
                 {
                     logger: (m) => {
                         if (m.status === 'recognizing text') {
-                            const progress = Math.round(m.progress * 100);
+                            const progress = 10 + Math.round(m.progress * 80);
                             document.getElementById('scanProgressFill').style.width = `${progress}%`;
-                            document.getElementById('scanProgressText').textContent = `正在识别文字... ${progress}%`;
+                            document.getElementById('scanProgressText').textContent = `正在识别文字(英文)... ${Math.round(m.progress * 100)}%`;
                         }
                     }
                 }
             );
 
-            document.getElementById('scanProgressFill').style.width = '100%';
-            document.getElementById('scanProgressText').textContent = '识别完成！';
+            // 3. 如果英文识别置信度太低（<50%），回退到中文识别
+            const confidence = result.data.confidence;
+            if (confidence < 50) {
+                document.getElementById('scanProgressText').textContent = '英文识别率低，切换中文引擎...';
+                const cnResult = await Tesseract.recognize(
+                    processedImage,
+                    'chi_sim+eng',
+                    {
+                        logger: (m) => {
+                            if (m.status === 'recognizing text') {
+                                const progress = 10 + Math.round(m.progress * 80);
+                                document.getElementById('scanProgressFill').style.width = `${progress}%`;
+                                document.getElementById('scanProgressText').textContent = `正在识别文字(中文)... ${Math.round(m.progress * 100)}%`;
+                            }
+                        }
+                    }
+                );
+                // 取置信度更高的结果
+                if (cnResult.data.confidence > confidence) {
+                    result = cnResult;
+                }
+            }
 
-            // 存储识别结果
+            document.getElementById('scanProgressFill').style.width = '100%';
+            document.getElementById('scanProgressText').textContent = `识别完成！置信度 ${Math.round(result.data.confidence)}%`;
+
+            // 存储识别结果（含置信度）
             this.scanOCRResult = result.data.text;
+            this.scanOCRConfidence = result.data.confidence;
 
             // 延迟一下让用户看到完成状态
             setTimeout(() => {
@@ -1535,6 +1611,22 @@ class CardManager {
         this.matchCard(parsedInfo);
     }
 
+    // ---- 关键词库 ----
+    _materialKeywords = ['PLA', 'PETG', 'ABS', 'TPU', 'Nylon', 'PC', 'PVA', 'HIPS', 'ASA', 'PP', 'PE', 'PET', 'PLA+', 'PETG+', 'TPE', 'PC-ABS'];
+    _manufacturerKeywords = ['Jucoole', 'eSUN', 'HATCHBOX', 'Overture', 'SUNLU', 'Inland', 'Polymaker', 'Prusament', 'Bambu', 'Creality', 'Anycubic', 'Elegoo'];
+    _colorMap = {
+        'red': 'red', '红色': 'red', '赤色': 'red', '大红': 'red', '中国红': 'red',
+        'orange': 'orange', '橙色': 'orange', '橘色': 'orange',
+        'yellow': 'yellow', '黄色': 'yellow', '金色': 'yellow', 'gold': 'yellow',
+        'green': 'green', '绿色': 'green', '草绿': 'green', '深绿': 'green', '浅绿': 'green',
+        'cyan': 'cyan', '青色': 'cyan', '湖蓝': 'cyan', '天蓝': 'cyan',
+        'blue': 'blue', '蓝色': 'blue', '深蓝': 'blue', '宝蓝': 'blue',
+        'purple': 'purple', '紫色': 'purple', '紫罗兰': 'purple', 'violet': 'purple',
+        'black': 'black', '黑色': 'black',
+        'white': 'white', '白色': 'white',
+        'gray': 'gray', '灰色': 'gray', 'grey': 'gray', '银灰': 'gray', '银色': 'gray', 'silver': 'gray'
+    };
+
     parseOCRText(text) {
         const result = {
             chineseName: '',
@@ -1544,43 +1636,132 @@ class CardManager {
             category: ''
         };
 
-        // 按行分割
-        const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+        if (!text || !text.trim()) return result;
 
-        // 简单的解析逻辑（可以根据实际情况调整）
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // 尝试识别中文名（通常包含中文）
-            if (!result.chineseName && /[\u4e00-\u9fa5]/.test(line) && line.length <= 10) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l && l.length > 0);
+        const fullText = lines.join(' ');
+
+        // ---- 1. Key:Value 模式解析 ----
+        const kvPairs = {};
+        for (const line of lines) {
+            const kvMatch = line.match(/^([^:：]+)[:：]\s*(.+)$/);
+            if (kvMatch) {
+                const key = kvMatch[1].trim().toLowerCase();
+                const val = kvMatch[2].trim();
+                kvPairs[key] = val;
+            }
+        }
+
+        // ---- 2. 从 Key:Value 提取字段 ----
+        // 材料
+        for (const [key, val] of Object.entries(kvPairs)) {
+            if (/material|材质|材料/.test(key)) {
+                result.material = this._detectMaterial(val) || val;
+                break;
+            }
+        }
+        // 颜色
+        for (const [key, val] of Object.entries(kvPairs)) {
+            if (/color|颜色/.test(key)) {
+                const cat = this._detectColor(val);
+                if (cat) result.category = cat;
+                result.englishName = val;
+                break;
+            }
+        }
+        // 产商/品牌
+        for (const [key, val] of Object.entries(kvPairs)) {
+            if (/brand|manufacturer|产商|品牌|厂家/.test(key)) {
+                result.manufacturer = this._detectManufacturer(val) || val;
+                break;
+            }
+        }
+
+        // ---- 3. 全文关键词扫描（补充未识别字段）----
+        if (!result.material) {
+            result.material = this._detectMaterial(fullText) || '';
+        }
+        if (!result.manufacturer) {
+            result.manufacturer = this._detectManufacturer(fullText) || '';
+        }
+        if (!result.category) {
+            result.category = this._detectColor(fullText) || '';
+        }
+
+        // ---- 4. 从非 KV 行中提取名称 ----
+        const skipPatterns = [
+            /^[\d\s\-_.]+$/,           // 纯数字/条码
+            /温度|temp|°C|℉/i,          // 温度信息
+            /直径|diameter|Φ|mm/i,      // 直径信息
+            /净重|weight|kg|g\b/i,      // 重量信息
+            /bed|热床/i,                // 热床温度
+            /print|打印|速度|speed/i,   // 打印参数
+            /batch|批号|lot/i,          // 批号
+            /[:：]/                      // 已处理的 KV 行
+        ];
+
+        const nameLines = lines.filter(line => {
+            if (skipPatterns.some(p => p.test(line))) return false;
+            if (/^([^:：]+)[:：]/.test(line)) return false; // KV 行
+            return true;
+        });
+
+        for (const line of nameLines) {
+            // 中文名
+            if (!result.chineseName && /[\u4e00-\u9fa5]/.test(line) && line.length <= 20) {
                 result.chineseName = line;
+                continue;
             }
-            
-            // 尝试识别英文名（通常全是大写字母或首字母大写）
-            if (!result.englishName && /^[A-Z][A-Za-z\s\-]+$/.test(line) && line.length <= 20) {
+            // 英文名（品牌名、产品名等）
+            if (!result.englishName && /^[A-Za-z][A-Za-z0-9\s\-™®+]*$/.test(line) && line.length <= 30) {
                 result.englishName = line;
-            }
-            
-            // 尝试识别产商（包含"厂"、"公司"、"科技"等关键词）
-            if (!result.manufacturer && /厂|公司|科技|集团|有限/.test(line)) {
-                result.manufacturer = line;
-            }
-            
-            // 尝试识别材料（包含"料"、"纸"、"布"、"革"等关键词）
-            if (!result.material && /料|纸|布|革|皮|金属|塑料/.test(line)) {
-                result.material = line;
+                continue;
             }
         }
 
-        // 如果上面没识别到，使用一些启发式规则
-        if (lines.length >= 1 && !result.chineseName) {
-            result.chineseName = lines[0]; // 假设第一行是名称
-        }
-        if (lines.length >= 2 && !result.englishName) {
-            result.englishName = lines[1]; // 假设第二行是英文名
+        // ---- 5. 启发式兜底 ----
+        if (!result.chineseName && !result.englishName) {
+            // 用材料+颜色合成名称
+            if (result.material && result.category) {
+                const colorCN = Object.entries(this._colorMap).find(([_, v]) => v === result.category);
+                result.chineseName = result.material + ' ' + (colorCN ? colorCN[0] : result.category);
+            }
         }
 
         return result;
+    }
+
+    _detectMaterial(text) {
+        if (!text) return null;
+        const upper = text.toUpperCase();
+        for (const mat of this._materialKeywords) {
+            if (upper.includes(mat.toUpperCase())) return mat;
+        }
+        // 正则兜底：匹配 "XX料" 或含 "料" 的短语
+        const matMatch = text.match(/([\u4e00-\u9fa5A-Za-z+]+料)/);
+        if (matMatch) return matMatch[1];
+        return null;
+    }
+
+    _detectColor(text) {
+        if (!text) return '';
+        const lower = text.toLowerCase();
+        for (const [keyword, category] of Object.entries(this._colorMap)) {
+            if (lower.includes(keyword.toLowerCase())) return category;
+        }
+        return '';
+    }
+
+    _detectManufacturer(text) {
+        if (!text) return null;
+        const lower = text.toLowerCase();
+        for (const brand of this._manufacturerKeywords) {
+            if (lower.includes(brand.toLowerCase())) return brand;
+        }
+        // 含公司/厂/集团等关键词
+        const cnMatch = text.match(/([\u4e00-\u9fa5]{2,}(?:公司|集团|科技|厂|实业))/);
+        if (cnMatch) return cnMatch[1];
+        return null;
     }
 
     matchCard(parsedInfo) {
