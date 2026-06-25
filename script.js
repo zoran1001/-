@@ -1626,6 +1626,11 @@ class CardManager {
         'white': 'white', '白色': 'white',
         'gray': 'gray', '灰色': 'gray', 'grey': 'gray', '银灰': 'gray', '银色': 'gray', 'silver': 'gray'
     };
+    _colorENtoCN = {
+        'red': '红色', 'orange': '橙色', 'yellow': '黄色', 'green': '绿色',
+        'cyan': '青色', 'blue': '蓝色', 'purple': '紫色',
+        'black': '黑色', 'white': '白色', 'gray': '灰色'
+    };
 
     parseOCRText(text) {
         const result = {
@@ -1660,12 +1665,22 @@ class CardManager {
                 break;
             }
         }
-        // 颜色
+        // 颜色 — 英文名=颜色英文名，中文名=中文翻译
         for (const [key, val] of Object.entries(kvPairs)) {
             if (/color|颜色/.test(key)) {
                 const cat = this._detectColor(val);
-                if (cat) result.category = cat;
-                result.englishName = val;
+                if (cat) {
+                    result.category = cat;
+                    // 找到对应的英文颜色名
+                    const enName = this._findColorEN(val);
+                    if (enName) {
+                        result.englishName = enName.charAt(0).toUpperCase() + enName.slice(1);
+                        result.chineseName = this._colorENtoCN[cat] || enName;
+                    } else {
+                        result.englishName = val;
+                        result.chineseName = this._colorENtoCN[cat] || val;
+                    }
+                }
                 break;
             }
         }
@@ -1686,6 +1701,15 @@ class CardManager {
         }
         if (!result.category) {
             result.category = this._detectColor(fullText) || '';
+        }
+        // 如果名字还是空的但检测到了颜色，用颜色名填充
+        if ((!result.chineseName || !result.englishName) && result.category) {
+            if (!result.englishName) {
+                result.englishName = result.category.charAt(0).toUpperCase() + result.category.slice(1);
+            }
+            if (!result.chineseName) {
+                result.chineseName = this._colorENtoCN[result.category] || result.englishName;
+            }
         }
 
         // ---- 4. 从非 KV 行中提取名称 ----
@@ -1721,10 +1745,12 @@ class CardManager {
 
         // ---- 5. 启发式兜底 ----
         if (!result.chineseName && !result.englishName) {
-            // 用材料+颜色合成名称
-            if (result.material && result.category) {
-                const colorCN = Object.entries(this._colorMap).find(([_, v]) => v === result.category);
-                result.chineseName = result.material + ' ' + (colorCN ? colorCN[0] : result.category);
+            if (result.category) {
+                result.englishName = result.category.charAt(0).toUpperCase() + result.category.slice(1);
+                result.chineseName = this._colorENtoCN[result.category] || result.englishName;
+            } else if (result.material) {
+                result.chineseName = result.material;
+                result.englishName = result.material;
             }
         }
 
@@ -1762,6 +1788,18 @@ class CardManager {
         const cnMatch = text.match(/([\u4e00-\u9fa5]{2,}(?:公司|集团|科技|厂|实业))/);
         if (cnMatch) return cnMatch[1];
         return null;
+    }
+
+    _findColorEN(text) {
+        if (!text) return '';
+        const lower = text.toLowerCase();
+        // 直接匹配英文颜色名
+        for (const enName of Object.keys(this._colorENtoCN)) {
+            if (lower === enName || lower.startsWith(enName + ' ') || lower.endsWith(' ' + enName)) {
+                return enName;
+            }
+        }
+        return '';
     }
 
     matchCard(parsedInfo) {
