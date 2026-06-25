@@ -102,6 +102,7 @@ const CloudStorage = {
                     manufacturer: card.manufacturer,
                     englishName: card.englishName,
                     material: card.material,
+                    variant: card.variant || '',
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
@@ -129,6 +130,7 @@ const CloudStorage = {
                     manufacturer: card.manufacturer,
                     englishName: card.englishName,
                     material: card.material,
+                    variant: card.variant || '',
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
@@ -155,6 +157,7 @@ const CloudStorage = {
                     manufacturer: card.manufacturer,
                     englishName: card.englishName,
                     material: card.material,
+                    variant: card.variant || '',
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
@@ -1603,6 +1606,9 @@ class CardManager {
         document.getElementById('scanEnglishName').value = parsedInfo.englishName || '';
         document.getElementById('scanManufacturer').value = parsedInfo.manufacturer || '';
         document.getElementById('scanMaterial').value = parsedInfo.material || '';
+        if (document.getElementById('scanVariant')) {
+            document.getElementById('scanVariant').value = parsedInfo.variant || '';
+        }
         if (parsedInfo.category) {
             document.getElementById('scanCategory').value = parsedInfo.category;
         }
@@ -1639,6 +1645,7 @@ class CardManager {
             englishName: '',
             manufacturer: '',
             material: '',
+            variant: '',
             category: ''
         };
 
@@ -1662,7 +1669,9 @@ class CardManager {
         // 材料
         for (const [key, val] of Object.entries(kvPairs)) {
             if (/material|材质|材料/.test(key)) {
-                result.material = this._detectMaterial(val) || val;
+                const { material, variant } = this._splitMaterialVariant(val);
+                result.material = material;
+                result.variant = variant;
                 break;
             }
         }
@@ -1695,7 +1704,9 @@ class CardManager {
 
         // ---- 3. 全文关键词扫描（补充未识别字段）----
         if (!result.material) {
-            result.material = this._detectMaterial(fullText) || '';
+            const { material, variant } = this._splitMaterialVariant(fullText);
+            result.material = material;
+            if (!result.variant) result.variant = variant;
         }
         if (!result.manufacturer) {
             result.manufacturer = this._detectManufacturer(fullText) || '';
@@ -1808,6 +1819,27 @@ class CardManager {
         return '';
     }
 
+    _splitMaterialVariant(text) {
+        if (!text) return { material: '', variant: '' };
+        // 尝试匹配已知材料+后缀（如 "PLA M", "PLA LITE", "PETG+"）
+        const sorted = [...this._materialKeywords].sort((a, b) => b.length - a.length);
+        const upper = text.toUpperCase();
+        for (const mat of sorted) {
+            const matUpper = mat.toUpperCase();
+            if (upper === matUpper || upper.startsWith(matUpper + ' ') || upper.startsWith(matUpper + '+') || upper.startsWith(matUpper + '-')) {
+                const variant = text.slice(mat.length).trim().replace(/^[+\-]/, '');
+                return { material: mat, variant };
+            }
+        }
+        // 兜底：直接用 _detectMaterial
+        const detected = this._detectMaterial(text);
+        if (detected) {
+            const variant = text.slice(detected.length).trim().replace(/^[+\-]/, '');
+            return { material: detected, variant };
+        }
+        return { material: text, variant: '' };
+    }
+
     matchCard(parsedInfo) {
         // 根据中文名或英文名匹配现有色卡
         const matchResult = document.getElementById('scanMatchResult');
@@ -1854,6 +1886,7 @@ class CardManager {
         const englishName = document.getElementById('scanEnglishName').value.trim();
         const manufacturer = document.getElementById('scanManufacturer').value.trim();
         const material = document.getElementById('scanMaterial').value.trim();
+        const variant = document.getElementById('scanVariant') ? document.getElementById('scanVariant').value.trim() : '';
         const category = document.getElementById('scanCategory').value;
         const scanColor = document.getElementById('scanColor').value;
 
@@ -1873,6 +1906,7 @@ class CardManager {
                 card.englishName = englishName || card.englishName;
                 card.manufacturer = manufacturer || card.manufacturer;
                 card.material = material || card.material;
+                card.variant = variant || card.variant || '';
                 if (category) card.category = category;
 
                 Storage.saveCards(this.cards);
@@ -1891,6 +1925,7 @@ class CardManager {
                 englishName: englishName || '',
                 manufacturer: manufacturer || '',
                 material: material || '',
+                variant: variant || '',
                 category: category || 'gray',
                 quantity: 1,
                 config: [],
@@ -2025,7 +2060,7 @@ class CardManager {
                         </div>
                         <div class="info-item">
                             <div class="info-label">材料</div>
-                            <div class="info-value">${card.material}</div>
+                            <div class="info-value">${card.material}${card.variant ? ' ' + card.variant : ''}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">库存</div>
@@ -2060,6 +2095,17 @@ class CardManager {
         document.getElementById('detailEnglishName').textContent = card.englishName;
         document.getElementById('detailManufacturer').textContent = card.manufacturer;
         document.getElementById('detailMaterial').textContent = card.material;
+        
+        // Variant
+        const variantRow = document.getElementById('detailVariantRow');
+        const variantEl = document.getElementById('detailVariant');
+        if (card.variant && card.variant.trim()) {
+            variantRow.style.display = 'flex';
+            variantEl.textContent = card.variant;
+        } else {
+            variantRow.style.display = 'none';
+        }
+        
         document.getElementById('detailCategory').textContent = categoryNames[card.category] || card.category;
         document.getElementById('detailQuantity').textContent = (card.quantity || 0) + ' 件';
 
@@ -2099,6 +2145,9 @@ class CardManager {
         document.getElementById('editEnglishName').value = card.englishName;
         document.getElementById('editManufacturer').value = card.manufacturer;
         document.getElementById('editMaterial').value = card.material;
+        if (document.getElementById('editVariant')) {
+            document.getElementById('editVariant').value = card.variant || '';
+        }
         document.getElementById('editCategory').value = card.category;
         document.getElementById('editQuantity').value = card.quantity || 0;
         document.getElementById('editNotes').value = card.notes || '';
@@ -2171,6 +2220,7 @@ class CardManager {
             const category = document.getElementById('category').value;
             const manufacturer = document.getElementById('manufacturer').value;
             const material = document.getElementById('material').value;
+            const variant = document.getElementById('variant') ? document.getElementById('variant').value.trim() : '';
 
             if (!chineseName) { alert('请输入中文名'); return; }
             if (!englishName) { alert('请输入英文名'); return; }
@@ -2189,6 +2239,7 @@ class CardManager {
                 manufacturer,
                 englishName,
                 material,
+                variant,
                 image: this.modalManager.previews.image.innerHTML 
                     ? this.modalManager.previews.image.querySelector('img').src 
                     : '',
@@ -2232,6 +2283,7 @@ class CardManager {
                 manufacturer: oldCard.manufacturer,
                 englishName: oldCard.englishName,
                 material: oldCard.material,
+                variant: oldCard.variant || '',
                 image: oldCard.image,
                 chineseName: oldCard.chineseName,
                 config: oldCard.config,
@@ -2246,6 +2298,7 @@ class CardManager {
             }
 
             const material = document.getElementById('editMaterial').value;
+            const variant = document.getElementById('editVariant') ? document.getElementById('editVariant').value.trim() : '';
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.edit);
             const newQuantity = parseInt(document.getElementById('editQuantity').value, 10) || 0;
             const newColor = document.getElementById('editColor').value;
@@ -2257,6 +2310,7 @@ class CardManager {
                 manufacturer: document.getElementById('editManufacturer').value,
                 englishName: document.getElementById('editEnglishName').value,
                 material: material,
+                variant: variant,
                 image: newImage,
                 chineseName: document.getElementById('editChineseName').value,
                 config: config,

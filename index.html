@@ -215,6 +215,10 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="variant">材质</label>
+                    <input type="text" id="variant" name="variant" placeholder="如 M、LITE、+ 等（可选）">
+                </div>
+                <div class="form-group">
                     <label for="category">颜色分类</label>
                     <select id="category" name="category" required>
                         <option value="">请选择颜色分类</option>
@@ -293,6 +297,10 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="editVariant">材质</label>
+                    <input type="text" id="editVariant" name="editVariant" placeholder="如 M、LITE、+ 等（可选）">
+                </div>
+                <div class="form-group">
                     <label for="editCategory">颜色分类</label>
                     <select id="editCategory" name="editCategory" required>
                         <option value="">请选择颜色分类</option>
@@ -366,6 +374,10 @@
                 <div class="detail-item">
                     <span class="detail-label">材料：</span>
                     <span id="detailMaterial"></span>
+                </div>
+                <div class="detail-item" id="detailVariantRow" style="display:none;">
+                    <span class="detail-label">材质：</span>
+                    <span id="detailVariant"></span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">颜色分类：</span>
@@ -496,6 +508,10 @@
                         <div class="scan-info-item">
                             <label>材料：</label>
                             <input type="text" id="scanMaterial" placeholder="未识别">
+                        </div>
+                        <div class="scan-info-item">
+                            <label>材质：</label>
+                            <input type="text" id="scanVariant" placeholder="未识别">
                         </div>
                         <div class="scan-info-item">
                             <label>颜色分类：</label>
