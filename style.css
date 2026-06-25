@@ -1332,13 +1332,13 @@ header p {
     }
 }
 
-.admin-add-section {
+.admin-add-row {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
 }
 
-.admin-add-section input {
+.admin-add-row input {
     flex: 1;
     padding: 12px 14px;
     background: var(--bg-input);
@@ -1349,11 +1349,11 @@ header p {
     transition: all var(--transition-fast);
 }
 
-.admin-add-section input::placeholder {
+.admin-add-row input::placeholder {
     color: var(--text-muted);
 }
 
-.admin-add-section input:focus {
+.admin-add-row input:focus {
     outline: none;
     border-color: var(--accent-primary);
     background: var(--bg-input-focus);
