@@ -1036,21 +1036,18 @@ class CardManager {
         this.batchMode = !this.batchMode;
         const toolbar = document.getElementById('batchToolbar');
         const btn = document.getElementById('batchModeBtn');
-        const section = document.querySelector('.cards-section');
 
         if (this.batchMode) {
             this.selectedCards.clear();
             toolbar.classList.add('show');
             btn.classList.add('active');
-            section.style.paddingBottom = '120px';
-            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量中...`;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>批量中...</span>`;
             this.updateBatchSelects();
         } else {
             this.selectedCards.clear();
             toolbar.classList.remove('show');
             btn.classList.remove('active');
-            section.style.paddingBottom = '60px';
-            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作`;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>批量操作</span>`;
         }
         this.applyFilters();
     }
@@ -1542,8 +1539,6 @@ class CardManager {
             cardElement.className = 'card';
             cardElement.setAttribute('data-id', card.id);
             if (this.batchMode && this.selectedCards.has(card.id)) {
-                cardElement.classList.add('selected');
-            }
                 cardElement.classList.add('selected');
             }
             cardElement.setAttribute('role', 'listitem');

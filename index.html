@@ -7,21 +7,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <h1>色卡管理</h1>
-        <p>按颜色分类浏览和管理色卡</p>
-        <div class="cloud-status" id="cloudStatus">
-            <span class="cloud-icon" id="cloudIcon">☁️</span>
-            <span class="cloud-text" id="cloudText">正在连接云端...</span>
-        </div>
-        <div class="section-tabs" id="sectionTabs">
-            <button class="section-tab active" data-section="cards" type="button">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                色卡
-            </button>
-        </div>
-    </header>
-
     <!-- ===== 低库存警告 ===== -->
     <div class="low-stock-warning" id="lowStockWarning">
         <div class="low-stock-inner">
@@ -31,82 +16,130 @@
         </div>
     </div>
 
-    <!-- ===== 色卡区域 ===== -->
-    <div class="section-panel" id="cardsPanel">
-        <!-- 工具栏（吸顶） -->
-        <div class="toolbar-wrapper">
-        <!-- 第1层：颜色分类导航 -->
-        <nav class="nav-categories" role="navigation" aria-label="颜色分类导航">
-            <button class="category-btn active" data-category="all" type="button">全部</button>
-            <button class="category-btn" data-category="red" type="button">赤色</button>
-            <button class="category-btn" data-category="orange" type="button">橙色</button>
-            <button class="category-btn" data-category="yellow" type="button">黄色</button>
-            <button class="category-btn" data-category="green" type="button">绿色</button>
-            <button class="category-btn" data-category="cyan" type="button">青色</button>
-            <button class="category-btn" data-category="blue" type="button">蓝色</button>
-            <button class="category-btn" data-category="purple" type="button">紫色</button>
-            <button class="category-btn" data-category="black" type="button">黑色</button>
-            <button class="category-btn" data-category="white" type="button">白色</button>
-            <button class="category-btn" data-category="gray" type="button">灰色</button>
-        </nav>
+    <!-- ===== 应用整体布局 ===== -->
+    <div class="app-layout">
 
-        <!-- 第2层：搜索 + 排序 -->
-        <div class="nav-filters">
-            <div class="search-box">
-                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" id="searchInput" class="search-input" placeholder="搜索色卡名称、产商、材料...">
-                <button class="search-clear" id="searchClear" type="button" style="display:none;">×</button>
+        <!-- ===== 左侧边栏 ===== -->
+        <aside class="sidebar">
+            <!-- Logo区 -->
+            <div class="sidebar-logo">
+                <div class="logo-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+                </div>
+                <span class="logo-text">色卡管理</span>
+                <div class="cloud-status" id="cloudStatus">
+                    <span class="cloud-icon" id="cloudIcon">☁️</span>
+                    <span class="cloud-text" id="cloudText">连接中</span>
+                </div>
             </div>
-            <div class="sort-box">
-                <svg class="sort-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
-                <select id="sortSelect" class="sort-select">
-                    <option value="default">默认排序</option>
-                    <option value="name-asc">名称 A → Z</option>
-                    <option value="name-desc">名称 Z → A</option>
-                    <option value="stock-asc">库存 低 → 高</option>
-                    <option value="stock-desc">库存 高 → 低</option>
-                </select>
-            </div>
-        </div>
 
-        <!-- 第3层：操作按钮 -->
-        <div class="nav-actions">
-            <div class="actions-group actions-primary">
-                <button class="add-btn" id="addCardBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    添加色卡
+            <!-- 颜色分类树 -->
+            <nav class="sidebar-nav" role="navigation" aria-label="颜色分类">
+                <div class="sidebar-nav-label">颜色分类</div>
+                <button class="category-btn active" data-category="all" type="button">
+                    <span class="cat-dot" style="background: linear-gradient(135deg,#ef4444,#8b5cf6,#06b6d4)"></span>
+                    全部色卡
                 </button>
-                <button class="scan-btn" id="scanBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                    扫描识别
+                <button class="category-btn" data-category="red" type="button">
+                    <span class="cat-dot" style="background:#ef4444"></span>
+                    赤色
                 </button>
-                <button class="template-btn" id="templateBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                    模板
+                <button class="category-btn" data-category="orange" type="button">
+                    <span class="cat-dot" style="background:#f97316"></span>
+                    橙色
                 </button>
-            </div>
-            <div class="actions-divider"></div>
-            <div class="actions-group actions-utility">
-                <button class="batch-mode-btn" id="batchModeBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                    批量操作
+                <button class="category-btn" data-category="yellow" type="button">
+                    <span class="cat-dot" style="background:#eab308"></span>
+                    黄色
                 </button>
-                <button class="log-btn" id="stockLogBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    日志
+                <button class="category-btn" data-category="green" type="button">
+                    <span class="cat-dot" style="background:#22c55e"></span>
+                    绿色
                 </button>
-                <button class="admin-btn" id="adminBtn" type="button">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    后台
+                <button class="category-btn" data-category="cyan" type="button">
+                    <span class="cat-dot" style="background:#06b6d4"></span>
+                    青色
                 </button>
-            </div>
-        </div>
-        </div><!-- /.toolbar-wrapper -->
+                <button class="category-btn" data-category="blue" type="button">
+                    <span class="cat-dot" style="background:#3b82f6"></span>
+                    蓝色
+                </button>
+                <button class="category-btn" data-category="purple" type="button">
+                    <span class="cat-dot" style="background:#a855f7"></span>
+                    紫色
+                </button>
+                <button class="category-btn" data-category="black" type="button">
+                    <span class="cat-dot" style="background:#1f2937"></span>
+                    黑色
+                </button>
+                <button class="category-btn" data-category="white" type="button">
+                    <span class="cat-dot" style="background:#e5e7eb; border:1px solid #d1d5db;"></span>
+                    白色
+                </button>
+                <button class="category-btn" data-category="gray" type="button">
+                    <span class="cat-dot" style="background:#9ca3af"></span>
+                    灰色
+                </button>
+            </nav>
 
-        <main role="main">
-            <section class="cards-section">
-                <h2>色卡列表</h2>
+            <!-- 侧边栏底部工具 -->
+            <div class="sidebar-footer">
+                <button class="sidebar-tool-btn" id="templateBtn" type="button" title="模板配置">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>模板</span>
+                </button>
+                <button class="sidebar-tool-btn" id="batchModeBtn" type="button" title="批量操作">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    <span>批量操作</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ===== 主内容区 ===== -->
+        <div class="main-area">
+
+            <!-- 顶部导航栏 -->
+            <header class="topbar">
+                <!-- 左侧：搜索 + 排序 -->
+                <div class="topbar-left">
+                    <div class="search-box">
+                        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="searchInput" class="search-input" placeholder="搜索色卡名称、产商、材料...">
+                        <button class="search-clear" id="searchClear" type="button" style="display:none;">×</button>
+                    </div>
+                    <div class="sort-box">
+                        <svg class="sort-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+                        <select id="sortSelect" class="sort-select">
+                            <option value="default">默认排序</option>
+                            <option value="name-asc">名称 A → Z</option>
+                            <option value="name-desc">名称 Z → A</option>
+                            <option value="stock-asc">库存 低 → 高</option>
+                            <option value="stock-desc">库存 高 → 低</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 右侧：工具按钮组 -->
+                <div class="topbar-right">
+                    <button class="topbar-icon-btn" id="scanBtn" type="button" title="扫描识别">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        <span>扫描</span>
+                    </button>
+                    <button class="topbar-icon-btn" id="stockLogBtn" type="button" title="库存日志">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <span>日志</span>
+                    </button>
+                    <button class="topbar-icon-btn" id="adminBtn" type="button" title="后台管理">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <span>后台</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 色卡内容区 -->
+            <main class="content-area" role="main">
                 <div class="cards-container" id="cardsContainer" role="list"></div>
+
                 <!-- 批量操作工具栏 -->
                 <div class="batch-toolbar" id="batchToolbar">
                     <div class="batch-actions">
@@ -142,13 +175,14 @@
                     </div>
                     <button class="batch-cancel-btn" id="batchCancelBtn" type="button">退出批量模式</button>
                 </div>
-            </section>
-        </main>
+            </main>
+        </div>
     </div>
 
-    <footer>
-        <p>色卡管理工具 © 2024</p>
-    </footer>
+    <!-- ===== 右下角悬浮添加按钮 ===== -->
+    <button class="fab-add" id="addCardBtn" type="button" title="添加色卡">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 
     <!-- ===== 色卡弹窗 ===== -->
     <div class="modal" id="addCardModal" role="dialog" aria-modal="true">
