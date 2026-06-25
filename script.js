@@ -839,13 +839,12 @@ class UndoManager {
 
 // ===== 图片预处理工具（提升 OCR 准确率）=====
 const ImagePreprocessor = {
-    // 将 base64 图片预处理后返回新的 base64
     async preprocess(dataUrl) {
         return new Promise((resolve) => {
             const img = new Image();
             img.onload = () => {
-                // 放大图片（Tesseract 对大尺寸图片识别更好）
-                const scale = Math.max(1, 1200 / Math.max(img.width, img.height));
+                // 放大 3 倍（Tesseract 对 300dpi+ 效果最好）
+                const scale = Math.max(3, 2400 / Math.max(img.width, img.height));
                 const w = Math.round(img.width * scale);
                 const h = Math.round(img.height * scale);
 
@@ -854,31 +853,47 @@ const ImagePreprocessor = {
                 canvas.height = h;
                 const ctx = canvas.getContext('2d');
 
-                // 白色背景
+                // 高质量缩放
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, w, h);
-
-                // 绘制原图
                 ctx.drawImage(img, 0, 0, w, h);
 
-                // 获取像素数据进行灰度化 + 二值化
                 const imageData = ctx.getImageData(0, 0, w, h);
                 const data = imageData.data;
 
-                for (let i = 0; i < data.length; i += 4) {
-                    // 灰度化（加权平均）
-                    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                    // 二值化（阈值 128）
-                    const val = gray > 128 ? 255 : 0;
-                    data[i] = val;
-                    data[i + 1] = val;
-                    data[i + 2] = val;
+                // 1. 灰度化
+                const gray = new Uint8ClampedArray(w * h);
+                for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+                    gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                }
+
+                // 2. 对比度拉伸（2%-98% 百分位）
+                const sorted = [...gray].sort((a, b) => a - b);
+                const low = sorted[Math.floor(sorted.length * 0.02)];
+                const high = sorted[Math.floor(sorted.length * 0.98)];
+                const range = high - low || 1;
+
+                // 3. 二值化（Otsu 近似 + 对比度拉伸）
+                for (let j = 0; j < gray.length; j++) {
+                    // 对比度拉伸到 0-255
+                    let val = ((gray[j] - low) / range) * 255;
+                    val = Math.max(0, Math.min(255, val));
+                    // 自适应阈值：局部偏亮则用更高阈值
+                    const threshold = val > 140 ? 160 : 120;
+                    const binarized = val > threshold ? 255 : 0;
+                    const i = j * 4;
+                    data[i] = binarized;
+                    data[i + 1] = binarized;
+                    data[i + 2] = binarized;
+                    data[i + 3] = 255;
                 }
 
                 ctx.putImageData(imageData, 0, 0);
                 resolve(canvas.toDataURL('image/png'));
             };
-            img.onerror = () => resolve(dataUrl); // 失败则返回原图
+            img.onerror = () => resolve(dataUrl);
             img.src = dataUrl;
         });
     }
@@ -890,7 +905,7 @@ const LLMParser = {
     apiUrl: 'https://api.deepseek.com/v1/chat/completions',
     model: 'deepseek-chat',
 
-    async parse(ocrText) {
+    async parse(ocrText, onProgress) {
         const systemPrompt = `你是色卡信息提取助手。从产品标签的 OCR 文字中提取结构化信息。
 
 规则：
@@ -920,7 +935,8 @@ const LLMParser = {
                         { role: 'user', content: userPrompt }
                     ],
                     temperature: 0.1,
-                    max_tokens: 200
+                    max_tokens: 200,
+                    stream: true
                 })
             });
 
@@ -928,11 +944,31 @@ const LLMParser = {
                 throw new Error(`API 请求失败: ${response.status}`);
             }
 
-            const data = await response.json();
-            const content = data.choices[0].message.content.trim();
-            
-            // 提取 JSON（LLM 可能包裹在 ```json 中）
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
+
+                for (const line of lines) {
+                    const data = line.slice(6).trim();
+                    if (data === '[DONE]') continue;
+
+                    try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices[0]?.delta?.content || '';
+                        fullContent += delta;
+                        if (onProgress) onProgress(fullContent);
+                    } catch (e) {}
+                }
+            }
+
+            const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error('LLM 返回格式异常');
             
             const parsed = JSON.parse(jsonMatch[0]);
@@ -1600,29 +1636,48 @@ class CardManager {
         document.getElementById('scanProgressFill').style.width = '5%';
 
         try {
-            // 1. 图片预处理（灰度化+二值化+放大）
+            // 1. 图片预处理
             const processedImage = await ImagePreprocessor.preprocess(this.scanImageData);
             document.getElementById('scanProgressFill').style.width = '10%';
-            document.getElementById('scanProgressText').textContent = '正在初始化 OCR 引擎...';
 
-            // 2. 优先用英文识别（标签多为英文），置信度低时回退中文
-            let result = await Tesseract.recognize(
-                processedImage,
-                'eng',
-                {
-                    logger: (m) => {
-                        if (m.status === 'recognizing text') {
-                            const progress = 10 + Math.round(m.progress * 80);
-                            document.getElementById('scanProgressFill').style.width = `${progress}%`;
-                            document.getElementById('scanProgressText').textContent = `正在识别文字(英文)... ${Math.round(m.progress * 100)}%`;
-                        }
+            // 2. 多模式 OCR：PSM 6=块, PSM 3=自动, PSM 4=列，取置信度最高的
+            document.getElementById('scanProgressText').textContent = '正在识别文字（模式 1/3）...';
+            const psmModes = [
+                { psm: 6, name: '文本块' },
+                { psm: 3, name: '自动' },
+                { psm: 4, name: '多列' }
+            ];
+
+            let bestResult = null;
+            let bestConfidence = 0;
+
+            for (let i = 0; i < psmModes.length; i++) {
+                const { psm, name } = psmModes[i];
+                document.getElementById('scanProgressText').textContent = `正在识别文字（${name}模式 ${i + 1}/${psmModes.length}）...`;
+
+                const result = await Tesseract.recognize(
+                    processedImage,
+                    'eng',
+                    {
+                        logger: (m) => {
+                            if (m.status === 'recognizing text') {
+                                const baseProgress = 10 + (i * 25);
+                                const progress = baseProgress + Math.round(m.progress * 20);
+                                document.getElementById('scanProgressFill').style.width = `${Math.min(progress, 85)}%`;
+                            }
+                        },
+                        tessedit_pageseg_mode: psm
                     }
-                }
-            );
+                );
 
-            // 3. 如果英文识别置信度太低（<50%），回退到中文识别
-            const confidence = result.data.confidence;
-            if (confidence < 50) {
+                if (result.data.confidence > bestConfidence) {
+                    bestConfidence = result.data.confidence;
+                    bestResult = result;
+                }
+            }
+
+            // 3. 如果最佳置信度仍低于 50%，尝试中文引擎
+            if (bestConfidence < 50) {
                 document.getElementById('scanProgressText').textContent = '英文识别率低，切换中文引擎...';
                 const cnResult = await Tesseract.recognize(
                     processedImage,
@@ -1630,30 +1685,28 @@ class CardManager {
                     {
                         logger: (m) => {
                             if (m.status === 'recognizing text') {
-                                const progress = 10 + Math.round(m.progress * 80);
+                                const progress = 85 + Math.round(m.progress * 10);
                                 document.getElementById('scanProgressFill').style.width = `${progress}%`;
-                                document.getElementById('scanProgressText').textContent = `正在识别文字(中文)... ${Math.round(m.progress * 100)}%`;
+                                document.getElementById('scanProgressText').textContent = `中文识别中... ${Math.round(m.progress * 100)}%`;
                             }
                         }
                     }
                 );
-                // 取置信度更高的结果
-                if (cnResult.data.confidence > confidence) {
-                    result = cnResult;
+                if (cnResult.data.confidence > bestConfidence) {
+                    bestConfidence = cnResult.data.confidence;
+                    bestResult = cnResult;
                 }
             }
 
-            document.getElementById('scanProgressFill').style.width = '100%';
-            document.getElementById('scanProgressText').textContent = `识别完成！置信度 ${Math.round(result.data.confidence)}%`;
+            document.getElementById('scanProgressFill').style.width = '90%';
+            document.getElementById('scanProgressText').textContent = `识别完成！置信度 ${Math.round(bestConfidence)}%，AI 解析中...`;
 
-            // 存储识别结果（含置信度）
-            this.scanOCRResult = result.data.text;
-            this.scanOCRConfidence = result.data.confidence;
+            // 存储识别结果
+            this.scanOCRResult = bestResult.data.text;
+            this.scanOCRConfidence = bestConfidence;
 
-            // 延迟一下让用户看到完成状态
-            setTimeout(async () => {
-                await this.showScanResult(this.scanOCRResult);
-            }, 500);
+            // 立即调用 AI 解析
+            await this.showScanResult(this.scanOCRResult);
 
         } catch (error) {
             console.error('OCR 识别失败：', error);
@@ -1665,7 +1718,8 @@ class CardManager {
 
     async showScanResult(rawText) {
         // 隐藏进度条
-        document.getElementById('scanProgress').style.display = 'none';
+        document.getElementById('scanProgress').style.display = 'block';
+        document.getElementById('scanProgressFill').style.width = '90%';
         
         // 显示识别结果区域
         document.getElementById('scanResult').style.display = 'block';
@@ -1676,13 +1730,22 @@ class CardManager {
         // 显示 AI 解析提示
         const parsedInfoEl = document.getElementById('scanParsedInfo');
         if (parsedInfoEl) {
-            parsedInfoEl.innerHTML = '<h4>解析中的色卡信息</h4><p style="color:var(--accent-primary);"> AI 正在智能识别中...</p>';
+            parsedInfoEl.innerHTML = '<h4>AI 智能解析中...</h4><p style="color:var(--accent-primary);">请稍候，正在提取色卡信息</p>';
         }
 
-        // 优先用 LLM 解析，失败回退关键词方案
-        let parsedInfo = await LLMParser.parse(rawText);
+        // 优先用 LLM 解析（带进度回调），失败回退关键词方案
+        let parsedInfo = await LLMParser.parse(rawText, (partialContent) => {
+            // 实时更新进度提示
+            if (parsedInfoEl && partialContent.length > 10) {
+                parsedInfoEl.innerHTML = `<h4>AI 解析中...</h4><pre style="font-size:0.75rem;color:var(--text-muted);max-height:80px;overflow:auto;">${partialContent}</pre>`;
+            }
+        });
+
         if (!parsedInfo) {
             parsedInfo = this.parseOCRText(rawText);
+            if (parsedInfoEl) {
+                parsedInfoEl.innerHTML = '<h4>解析出的色卡信息</h4><p style="color:var(--text-muted);font-size:0.8rem;">LLM 解析失败，已使用本地关键词方案</p>';
+            }
         }
         
         // 填充到表单
