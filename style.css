@@ -1463,6 +1463,25 @@ footer {
     }
 }
 
+/* ===== 骨架屏加载 ===== */
+.skeleton-card {
+    pointer-events: none;
+    animation: fadeInUp 0.3s ease;
+}
+
+.skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card-hover) 50%, var(--bg-secondary) 75%);
+    background-size: 200% 100%;
+    border-radius: var(--radius-sm);
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 /* ===== 低库存警告 ===== */
 .low-stock-warning {
     display: none;

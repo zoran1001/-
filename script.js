@@ -433,6 +433,14 @@ const Storage = {
 };
 
 const Utils = {
+    debounce(fn, delay = 300) {
+        let timer = null;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    },
+
     getColorForCategory(category) {
         return categoryColors[category] || '#888888';
     },
@@ -731,9 +739,25 @@ class CardManager {
 
     bindEvents() {
         document.getElementById('addCardBtn').addEventListener('click', () => this.modalManager.open('addCard'));
-        document.getElementById('templateBtn').addEventListener('click', () => this.showEditTemplate());
+        document.getElementById('templateBtn').addEventListener('click', () => {
+            if (this.cards.length > 0 && !confirm('修改模板配置将应用到所有色卡，确定继续？')) return;
+            this.showEditTemplate();
+        });
         document.getElementById('adminBtn').addEventListener('click', () => this.showAdmin());
         
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'n' || e.key === 'N') {
+                    e.preventDefault();
+                    this.modalManager.open('addCard');
+                } else if (e.key === 'f' || e.key === 'F') {
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
+                }
+            }
+        });
+
         document.getElementById('addCardForm').addEventListener('submit', (e) => this.handleAddCard(e));
         document.getElementById('editCardForm').addEventListener('submit', (e) => this.handleEditCard(e));
         document.getElementById('editTemplateForm').addEventListener('submit', (e) => this.handleTemplateSubmit(e));
@@ -758,11 +782,12 @@ class CardManager {
             });
         });
 
-        // Search input
+        // Search input with debounce
+        const debouncedSearch = Utils.debounce(() => this.applyFilters(), 300);
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.currentSearch = e.target.value.trim();
             document.getElementById('searchClear').style.display = this.currentSearch ? 'flex' : 'none';
-            this.applyFilters();
+            debouncedSearch();
         });
         document.getElementById('searchClear').addEventListener('click', () => {
             document.getElementById('searchInput').value = '';
@@ -1504,7 +1529,7 @@ class CardManager {
 
             this.cards.push(newCard);
             Storage.saveCards(this.cards);
-            CloudStorage.addCard(keysToSnake(newCard));
+            CloudStorage.addCard(newCard);
 
             // 记录扫描新增色卡
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
@@ -1520,6 +1545,27 @@ class CardManager {
         this.closeScanModal();
     }
 
+    showLoadingSkeleton() {
+        const skeletonHtml = Array(6).fill('').map(() => `
+            <div class="card skeleton-card">
+                <div class="card-color-preview" style="background:var(--bg-secondary);"></div>
+                <div class="card-content">
+                    <div class="card-title-row"><div class="skeleton-line" style="width:60%;"></div></div>
+                    <div class="skeleton-line" style="width:40%;margin-top:8px;"></div>
+                    <div class="card-info" style="margin-top:12px;">
+                        <div class="skeleton-line" style="width:80%;"></div>
+                        <div class="skeleton-line" style="width:70%;"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        this.cardsContainer.innerHTML = skeletonHtml;
+    }
+
+    hideLoadingSkeleton() {
+        // Called before renderCards to clear skeleton
+    }
+
     renderCards(cards = this.cards) {
         this.cardsContainer.innerHTML = '';
 
@@ -1531,9 +1577,11 @@ class CardManager {
                     <div class="empty-state-hint">点击「+ 添加色卡」开始创建你的色卡库</div>
                 </div>
             `;
+            this.checkLowStock();
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         cards.forEach(card => {
             const cardElement = document.createElement('div');
             cardElement.className = 'card';
@@ -1587,8 +1635,9 @@ class CardManager {
                     </div>
                 </div>
             `;
-            this.cardsContainer.appendChild(cardElement);
+            fragment.appendChild(cardElement);
         });
+        this.cardsContainer.appendChild(fragment);
 
         this.checkLowStock();
     }
@@ -1698,35 +1747,43 @@ class CardManager {
         e.preventDefault();
 
         try {
+            const chineseName = document.getElementById('chineseName').value.trim();
+            const englishName = document.getElementById('englishName').value.trim();
             const category = document.getElementById('category').value;
             const manufacturer = document.getElementById('manufacturer').value;
             const material = document.getElementById('material').value;
+
+            if (!chineseName) { alert('请输入中文名'); return; }
+            if (!englishName) { alert('请输入英文名'); return; }
+            if (!category) { alert('请选择颜色分类'); return; }
+            if (!manufacturer) { alert('请选择产商'); return; }
+            if (!material) { alert('请选择材料'); return; }
+
             const quantity = parseInt(document.getElementById('quantity').value, 10) || 0;
             const color = document.getElementById('color').value;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.add);
 
             const newCard = {
                 id: Date.now(),
-                category: category,
-                manufacturer: manufacturer,
-                englishName: document.getElementById('englishName').value,
-                material: material,
+                category,
+                manufacturer,
+                englishName,
+                material,
                 image: this.modalManager.previews.image.innerHTML 
                     ? this.modalManager.previews.image.querySelector('img').src 
                     : '',
-                chineseName: document.getElementById('chineseName').value,
-                config: config,
-                quantity: quantity,
-                color: color
+                chineseName,
+                config,
+                quantity,
+                color
             };
 
             this.cards.push(newCard);
-            // 记录新增色卡库存
             if (quantity > 0) {
                 this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
             }
             Storage.saveCards(this.cards);
-            CloudStorage.addCard(keysToSnake(newCard));
+            CloudStorage.addCard(newCard);
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
@@ -1825,11 +1882,7 @@ class CardManager {
 
             Storage.saveTemplate(this.template);
             CloudStorage.saveTemplate(this.template);
-
-            if (confirm('确定要将模板配置应用到所有色卡吗？')) {
-                this.applyTemplateToAllCards();
-            }
-
+            this.applyTemplateToAllCards();
             this.modalManager.close('editTemplate');
         } catch (error) {
             console.error('保存模板失败:', error);
@@ -1895,7 +1948,7 @@ class CardManager {
         this.clearOldData();
         this.materialManager.updateSelects();
         this.currentCategory = 'all';
-        this.applyFilters();
+        this.showLoadingSkeleton();
         this.loadFromCloud();
     }
 
@@ -1905,6 +1958,7 @@ class CardManager {
         if (!CloudStorage.isAvailable()) {
             CloudStorage.setStatus('disconnected', '未连接云端，使用本地存储');
             this.cloudSyncCompleted = true;
+            this.applyFilters();
             return;
         }
 
@@ -1947,12 +2001,13 @@ class CardManager {
             }
 
             this.cloudSyncCompleted = true;
-            this.renderCards();
+            this.applyFilters();
             CloudStorage.setStatus('connected', '已连接云端');
             console.log('云端数据同步完成');
         } catch (e) {
             this.cloudSyncCompleted = true;
             CloudStorage.setStatus('disconnected', '云端同步失败，使用本地存储');
+            this.applyFilters();
             console.warn('从云端加载数据失败', e);
         }
     }
