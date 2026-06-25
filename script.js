@@ -648,6 +648,8 @@ class CardManager {
         this.materialManager = new MaterialManager();
         this.lowStockDismissed = false;  // 用户是否已手动关闭警告
         this.cloudSyncCompleted = false; // 云端同步是否已完成
+        this.currentCategory = 'all';    // 当前分类筛选
+        this.currentSearch = '';         // 当前搜索词
         this.bindEvents();
     }
 
@@ -675,8 +677,23 @@ class CardManager {
         document.querySelectorAll('.category-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const category = btn.getAttribute('data-category');
-                this.filterCards(category);
+                this.currentCategory = category;
+                this.applyFilters();
             });
+        });
+
+        // Search input
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            this.currentSearch = e.target.value.trim();
+            document.getElementById('searchClear').style.display = this.currentSearch ? 'flex' : 'none';
+            this.applyFilters();
+        });
+        document.getElementById('searchClear').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            this.currentSearch = '';
+            document.getElementById('searchClear').style.display = 'none';
+            this.applyFilters();
+            document.getElementById('searchInput').focus();
         });
 
         // Admin tab switching
@@ -1446,25 +1463,40 @@ class CardManager {
     }
 
     filterCards(category) {
+        this.currentCategory = category;
+        this.applyFilters();
+    }
+
+    applyFilters() {
+        // 更新分类按钮状态
         document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.querySelector(`[data-category="${this.currentCategory}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
 
-        const activeBtn = document.querySelector(`[data-category="${category}"]`);
-        if (activeBtn) {
-            activeBtn.classList.add('active');
+        // 先用分类筛选
+        let filtered = this.currentCategory === 'all' 
+            ? [...this.cards] 
+            : this.cards.filter(card => card.category === this.currentCategory);
+
+        // 再用搜索词筛选
+        if (this.currentSearch) {
+            const kw = this.currentSearch.toLowerCase();
+            filtered = filtered.filter(card => {
+                return (card.chineseName && card.chineseName.toLowerCase().includes(kw)) ||
+                       (card.englishName && card.englishName.toLowerCase().includes(kw)) ||
+                       (card.manufacturer && card.manufacturer.toLowerCase().includes(kw)) ||
+                       (card.material && card.material.toLowerCase().includes(kw));
+            });
         }
 
-        if (category === 'all') {
-            this.renderCards(this.cards);
-        } else {
-            const filteredCards = this.cards.filter(card => card.category === category);
-            this.renderCards(filteredCards);
-        }
+        this.renderCards(filtered);
     }
 
     init() {
         this.clearOldData();
         this.materialManager.updateSelects();
-        this.filterCards('all');
+        this.currentCategory = 'all';
+        this.applyFilters();
         this.loadFromCloud();
     }
 
