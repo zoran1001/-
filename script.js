@@ -707,6 +707,41 @@ class CardManager {
             this.lowStockDismissed = true;
             document.getElementById('lowStockWarning').classList.remove('show');
         });
+
+        // Scan modal events
+        document.getElementById('scanBtn').addEventListener('click', () => this.openScanModal());
+        document.getElementById('closeScanModalBtn').addEventListener('click', () => this.closeScanModal());
+        document.getElementById('scanUploadArea').addEventListener('click', () => document.getElementById('scanImageUpload').click());
+        document.getElementById('scanImageUpload').addEventListener('change', (e) => this.handleScanImageUpload(e));
+        document.getElementById('scanStartBtn').addEventListener('click', () => this.startOCR());
+        document.getElementById('scanConfirmBtn').addEventListener('click', () => this.confirmScanResult());
+        document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
+
+        // 点击外部关闭扫描模态框
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('scanModal')) {
+                this.closeScanModal();
+            }
+        });
+
+        // 拖拽上传支持
+        const uploadArea = document.getElementById('scanUploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.match('image.*')) {
+                document.getElementById('scanImageUpload').files = e.dataTransfer.files;
+                this.handleScanImageUpload({ target: { files: [file] } });
+            }
+        });
     }
 
     handleImageUpload(e, previewId) {
@@ -825,6 +860,277 @@ class CardManager {
 
         text.innerHTML = `<strong>⚠ 库存预警：</strong>${names}`;
         warning.classList.add('show');
+    }
+
+    // ===== 扫描识别功能 =====
+    openScanModal() {
+        this.resetScanModal();
+        document.getElementById('scanModal').style.display = 'block';
+    }
+
+    closeScanModal() {
+        document.getElementById('scanModal').style.display = 'none';
+        this.resetScanModal();
+    }
+
+    resetScanModal() {
+        // 重置所有状态
+        document.getElementById('scanUploadContent').style.display = 'block';
+        document.getElementById('scanPreviewImg').style.display = 'none';
+        document.getElementById('scanProgress').style.display = 'none';
+        document.getElementById('scanResult').style.display = 'none';
+        document.getElementById('scanInitialActions').style.display = 'block';
+        document.getElementById('scanStartBtn').disabled = true;
+        document.getElementById('scanImageUpload').value = '';
+        this.scanImageData = null; // 存储图片数据
+        this.scanOCRResult = null; // 存储 OCR 结果
+    }
+
+    handleScanImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // 验证文件类型
+        if (!file.type.match('image.*')) {
+            alert('请选择图片文件！');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const imgData = event.target.result;
+            this.scanImageData = imgData;
+
+            // 显示预览
+            const previewImg = document.getElementById('scanPreviewImg');
+            previewImg.src = imgData;
+            previewImg.style.display = 'block';
+            document.getElementById('scanUploadContent').style.display = 'none';
+
+            // 启用识别按钮
+            document.getElementById('scanStartBtn').disabled = false;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async startOCR() {
+        if (!this.scanImageData) {
+            alert('请先上传图片！');
+            return;
+        }
+
+        // 显示进度条
+        document.getElementById('scanProgress').style.display = 'block';
+        document.getElementById('scanInitialActions').style.display = 'none';
+        document.getElementById('scanProgressText').textContent = '正在初始化 OCR 引擎...';
+        document.getElementById('scanProgressFill').style.width = '10%';
+
+        try {
+            // 使用 Tesseract.js 进行 OCR 识别
+            const result = await Tesseract.recognize(
+                this.scanImageData,
+                'chi_sim+eng', // 中文简体 + 英文
+                {
+                    logger: (m) => {
+                        if (m.status === 'recognizing text') {
+                            const progress = Math.round(m.progress * 100);
+                            document.getElementById('scanProgressFill').style.width = `${progress}%`;
+                            document.getElementById('scanProgressText').textContent = `正在识别文字... ${progress}%`;
+                        }
+                    }
+                }
+            );
+
+            document.getElementById('scanProgressFill').style.width = '100%';
+            document.getElementById('scanProgressText').textContent = '识别完成！';
+
+            // 存储识别结果
+            this.scanOCRResult = result.data.text;
+
+            // 延迟一下让用户看到完成状态
+            setTimeout(() => {
+                this.showScanResult(this.scanOCRResult);
+            }, 500);
+
+        } catch (error) {
+            console.error('OCR 识别失败：', error);
+            alert('OCR 识别失败，请重试！');
+            document.getElementById('scanProgress').style.display = 'none';
+            document.getElementById('scanInitialActions').style.display = 'block';
+        }
+    }
+
+    showScanResult(rawText) {
+        // 隐藏进度条
+        document.getElementById('scanProgress').style.display = 'none';
+        
+        // 显示识别结果区域
+        document.getElementById('scanResult').style.display = 'block';
+        
+        // 显示原始识别文字
+        document.getElementById('scanRawText').textContent = rawText;
+
+        // 解析识别文字
+        const parsedInfo = this.parseOCRText(rawText);
+        
+        // 填充到表单
+        document.getElementById('scanChineseName').value = parsedInfo.chineseName || '';
+        document.getElementById('scanEnglishName').value = parsedInfo.englishName || '';
+        document.getElementById('scanManufacturer').value = parsedInfo.manufacturer || '';
+        document.getElementById('scanMaterial').value = parsedInfo.material || '';
+        if (parsedInfo.category) {
+            document.getElementById('scanCategory').value = parsedInfo.category;
+        }
+
+        // 尝试匹配现有色卡
+        this.matchCard(parsedInfo);
+    }
+
+    parseOCRText(text) {
+        const result = {
+            chineseName: '',
+            englishName: '',
+            manufacturer: '',
+            material: '',
+            category: ''
+        };
+
+        // 按行分割
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+
+        // 简单的解析逻辑（可以根据实际情况调整）
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // 尝试识别中文名（通常包含中文）
+            if (!result.chineseName && /[\u4e00-\u9fa5]/.test(line) && line.length <= 10) {
+                result.chineseName = line;
+            }
+            
+            // 尝试识别英文名（通常全是大写字母或首字母大写）
+            if (!result.englishName && /^[A-Z][A-Za-z\s\-]+$/.test(line) && line.length <= 20) {
+                result.englishName = line;
+            }
+            
+            // 尝试识别产商（包含"厂"、"公司"、"科技"等关键词）
+            if (!result.manufacturer && /厂|公司|科技|集团|有限/.test(line)) {
+                result.manufacturer = line;
+            }
+            
+            // 尝试识别材料（包含"料"、"纸"、"布"、"革"等关键词）
+            if (!result.material && /料|纸|布|革|皮|金属|塑料/.test(line)) {
+                result.material = line;
+            }
+        }
+
+        // 如果上面没识别到，使用一些启发式规则
+        if (lines.length >= 1 && !result.chineseName) {
+            result.chineseName = lines[0]; // 假设第一行是名称
+        }
+        if (lines.length >= 2 && !result.englishName) {
+            result.englishName = lines[1]; // 假设第二行是英文名
+        }
+
+        return result;
+    }
+
+    matchCard(parsedInfo) {
+        // 根据中文名或英文名匹配现有色卡
+        const matchResult = document.getElementById('scanMatchResult');
+        const matchText = document.getElementById('scanMatchText');
+
+        if (!parsedInfo.chineseName && !parsedInfo.englishName) {
+            matchResult.style.display = 'none';
+            return;
+        }
+
+        // 搜索匹配的色卡
+        const matchedCards = this.cards.filter(card => {
+            const nameMatch = parsedInfo.chineseName && 
+                (card.chineseName.includes(parsedInfo.chineseName) || 
+                 parsedInfo.chineseName.includes(card.chineseName));
+            const enNameMatch = parsedInfo.englishName && 
+                (card.englishName.includes(parsedInfo.englishName) || 
+                 parsedInfo.englishName.includes(card.englishName));
+            return nameMatch || enNameMatch;
+        });
+
+        if (matchedCards.length > 0) {
+            // 找到匹配的色卡
+            const card = matchedCards[0];
+            matchResult.style.display = 'block';
+            matchResult.className = 'scan-match-result match-found';
+            matchText.innerHTML = `✅ 找到匹配的色卡：<strong>「${card.chineseName}」(${card.englishName})</strong><br>当前库存：${card.quantity || 0} 件<br>确认后将自动增加库存！`;
+            
+            // 存储匹配到的色卡 ID
+            this.matchedCardId = card.id;
+        } else {
+            // 未找到匹配的色卡
+            matchResult.style.display = 'block';
+            matchResult.className = 'scan-match-result match-not-found';
+            matchText.innerHTML = `⚠️ 未找到匹配的色卡，确认后将创建新的色卡。`;
+            
+            // 清除匹配 ID
+            this.matchedCardId = null;
+        }
+    }
+
+    confirmScanResult() {
+        const chineseName = document.getElementById('scanChineseName').value.trim();
+        const englishName = document.getElementById('scanEnglishName').value.trim();
+        const manufacturer = document.getElementById('scanManufacturer').value.trim();
+        const material = document.getElementById('scanMaterial').value.trim();
+        const category = document.getElementById('scanCategory').value;
+
+        if (!chineseName) {
+            alert('请输入中文名！');
+            return;
+        }
+
+        if (this.matchedCardId) {
+            // 更新现有色卡（增加库存）
+            const card = this.cards.find(c => c.id === this.matchedCardId);
+            if (card) {
+                card.quantity = (card.quantity || 0) + 1;
+                
+                // 更新其他信息（如果用户修改了）
+                card.englishName = englishName || card.englishName;
+                card.manufacturer = manufacturer || card.manufacturer;
+                card.material = material || card.material;
+                if (category) card.category = category;
+
+                Storage.saveCards(this.cards);
+                CloudStorage.updateCard(keysToSnake(card));
+                
+                alert(`✅ 已更新色卡「${card.chineseName}」的库存，当前库存：${card.quantity} 件`);
+            }
+        } else {
+            // 创建新色卡
+            const newCard = {
+                id: Date.now().toString(),
+                chineseName,
+                englishName: englishName || '',
+                manufacturer: manufacturer || '',
+                material: material || '',
+                category: category || 'gray',
+                quantity: 1,
+                config: [],
+                image: ''
+            };
+
+            this.cards.push(newCard);
+            Storage.saveCards(this.cards);
+            CloudStorage.addCard(keysToSnake(newCard));
+
+            alert(`✅ 已创建新色卡「${chineseName}」`);
+        }
+
+        // 刷新显示
+        this.renderCards();
+        this.checkLowStock();
+        
+        // 关闭模态框
+        this.closeScanModal();
     }
 
     renderCards(cards = this.cards) {

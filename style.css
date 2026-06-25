@@ -410,6 +410,48 @@ header p {
     transform: translateY(0);
 }
 
+.scan-btn {
+    position: relative;
+    padding: 10px 22px;
+    border: 1.5px solid rgba(6, 182, 212, 0.3);
+    border-radius: var(--radius-full);
+    color: #06b6d4;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.02em;
+    font-family: var(--font-sans);
+    background: rgba(6, 182, 212, 0.08);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+}
+
+.scan-btn svg {
+    position: relative;
+    z-index: 1;
+    color: #06b6d4;
+}
+
+.scan-btn:hover {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+    border-color: transparent;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.35);
+}
+
+.scan-btn:hover svg {
+    color: white;
+}
+
+.scan-btn:active {
+    transform: translateY(0);
+}
+
 .template-btn {
     position: relative;
     padding: 10px 22px;
@@ -1919,5 +1961,297 @@ footer {
     .section-tab {
         padding: 6px 14px;
         font-size: 0.8rem;
+    }
+}
+
+/* ===== 扫描识别模态框 ===== */
+.scan-modal {
+    max-width: 700px;
+}
+
+.scan-modal h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.scan-hint {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+}
+
+.scan-upload-area {
+    border: 2px dashed var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    margin-bottom: 20px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: var(--bg-secondary);
+}
+
+.scan-upload-area:hover {
+    border-color: var(--accent-secondary);
+    background: rgba(6, 182, 212, 0.05);
+}
+
+.scan-upload-area.dragover {
+    border-color: var(--accent-secondary);
+    background: rgba(6, 182, 212, 0.1);
+}
+
+.scan-upload-content {
+    color: var(--text-secondary);
+}
+
+.scan-upload-content svg {
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.scan-upload-content p {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.scan-upload-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.scan-preview-img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: var(--radius-md);
+    object-fit: contain;
+}
+
+/* 进度条 */
+.scan-progress {
+    margin: 20px 0;
+}
+
+.scan-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.scan-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+    border-radius: var(--radius-full);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.scan-progress-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* 识别结果 */
+.scan-result {
+    margin-top: 20px;
+}
+
+.scan-result h3 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.scan-raw-text {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.scan-raw-text strong {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 8px;
+}
+
+.scan-raw-text pre {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 150px;
+    overflow-y: auto;
+    line-height: 1.6;
+}
+
+.scan-parsed-info {
+    margin-bottom: 20px;
+}
+
+.scan-parsed-info h4 {
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.scan-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.scan-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.scan-info-item label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.scan-info-item input,
+.scan-info-item select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    font-size: 0.9rem;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+
+.scan-info-item input:focus,
+.scan-info-item select:focus {
+    outline: none;
+    border-color: var(--accent-secondary);
+    background: var(--bg-input-focus);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+/* 匹配结果 */
+.scan-match-result {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+}
+
+.scan-match-result h4 {
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+}
+
+.scan-match-result.match-found {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-left: 4px solid var(--accent-success);
+}
+
+.scan-match-result.match-found h4 {
+    color: var(--accent-success);
+}
+
+.scan-match-result.match-not-found {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-left: 4px solid var(--accent-warning);
+}
+
+.scan-match-result.match-not-found h4 {
+    color: var(--accent-warning);
+}
+
+.scan-match-result p {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+/* 操作按钮 */
+.scan-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.scan-initial-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.scan-btn-primary {
+    flex: 1;
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--accent-secondary), #0891b2);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-family: var(--font-sans);
+}
+
+.scan-btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.35);
+}
+
+.scan-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.scan-btn-secondary {
+    flex: 1;
+    padding: 12px 24px;
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-family: var(--font-sans);
+}
+
+.scan-btn-secondary:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+    .scan-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .scan-actions {
+        flex-direction: column;
+    }
+    
+    .scan-upload-area {
+        padding: 24px 16px;
+        min-height: 160px;
     }
 }

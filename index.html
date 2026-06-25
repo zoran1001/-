@@ -50,6 +50,10 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 添加色卡
             </button>
+            <button class="scan-btn" id="scanBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                扫描识别
+            </button>
             <button class="template-btn" id="templateBtn" type="button">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 模板
@@ -301,6 +305,97 @@
         </div>
     </div>
 
+    <!-- ===== 扫描识别模态框 ===== -->
+    <div class="modal" id="scanModal" role="dialog" aria-modal="true">
+        <div class="modal-content scan-modal">
+            <button class="close-btn" id="closeScanModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>📷 扫描识别色卡</h2>
+            <p class="scan-hint">上传包含色卡信息的图片，系统将自动识别并添加色卡</p>
+            
+            <div class="scan-upload-area" id="scanUploadArea">
+                <input type="file" id="scanImageUpload" accept="image/*" style="display:none;">
+                <div class="scan-upload-content" id="scanUploadContent">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                    <p>点击或拖拽图片到此处</p>
+                    <span class="scan-upload-hint">支持 JPG、PNG、BMP 格式</span>
+                </div>
+                <img id="scanPreviewImg" class="scan-preview-img" style="display:none;">
+            </div>
+
+            <div class="scan-progress" id="scanProgress" style="display:none;">
+                <div class="scan-progress-bar">
+                    <div class="scan-progress-fill" id="scanProgressFill"></div>
+                </div>
+                <p class="scan-progress-text" id="scanProgressText">正在初始化...</p>
+            </div>
+
+            <div class="scan-result" id="scanResult" style="display:none;">
+                <h3>识别结果</h3>
+                <div class="scan-raw-text">
+                    <strong>原始识别文字：</strong>
+                    <pre id="scanRawText"></pre>
+                </div>
+                
+                <div class="scan-parsed-info" id="scanParsedInfo">
+                    <h4>解析出的色卡信息</h4>
+                    <div class="scan-info-grid">
+                        <div class="scan-info-item">
+                            <label>中文名：</label>
+                            <input type="text" id="scanChineseName" placeholder="未识别">
+                        </div>
+                        <div class="scan-info-item">
+                            <label>英文名：</label>
+                            <input type="text" id="scanEnglishName" placeholder="未识别">
+                        </div>
+                        <div class="scan-info-item">
+                            <label>产商：</label>
+                            <input type="text" id="scanManufacturer" placeholder="未识别">
+                        </div>
+                        <div class="scan-info-item">
+                            <label>材料：</label>
+                            <input type="text" id="scanMaterial" placeholder="未识别">
+                        </div>
+                        <div class="scan-info-item">
+                            <label>颜色分类：</label>
+                            <select id="scanCategory">
+                                <option value="">未识别</option>
+                                <option value="red">赤色</option>
+                                <option value="orange">橙色</option>
+                                <option value="yellow">黄色</option>
+                                <option value="green">绿色</option>
+                                <option value="cyan">青色</option>
+                                <option value="blue">蓝色</option>
+                                <option value="purple">紫色</option>
+                                <option value="black">黑色</option>
+                                <option value="white">白色</option>
+                                <option value="gray">灰色</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scan-match-result" id="scanMatchResult" style="display:none;">
+                    <h4>匹配结果</h4>
+                    <p id="scanMatchText"></p>
+                </div>
+
+                <div class="scan-actions">
+                    <button type="button" class="scan-btn-primary" id="scanConfirmBtn">确认添加</button>
+                    <button type="button" class="scan-btn-secondary" id="scanRetryBtn">重新识别</button>
+                </div>
+            </div>
+
+            <div class="scan-initial-actions" id="scanInitialActions">
+                <button type="button" class="scan-btn-primary" id="scanStartBtn" disabled>开始识别</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
