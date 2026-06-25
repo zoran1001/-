@@ -884,6 +884,81 @@ const ImagePreprocessor = {
     }
 };
 
+// ===== LLM 智能解析模块 =====
+const LLMParser = {
+    apiKey: 'sk-aed250fd87924d5f9a70a75f1c2283c5',
+    apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+    model: 'deepseek-chat',
+
+    async parse(ocrText) {
+        const systemPrompt = `你是色卡信息提取助手。从产品标签的 OCR 文字中提取结构化信息。
+
+规则：
+1. 只返回 JSON，不要其他文字
+2. 颜色分类必须是以下之一：red, orange, yellow, green, cyan, blue, purple, black, white, gray
+3. 材料是基础材质（PLA, PETG, ABS, TPU, Nylon 等），材质是变体（M, LITE, +, Pro 等）
+4. 英文名通常是颜色名（如 Red, Milk Green），中文名是英文的翻译（如 红色, 奶绿）
+5. 产商是品牌名（如 Jucoole, kexcelled, eSUN）
+6. 如果某个字段无法确定，留空字符串
+
+返回格式：
+{"chineseName":"","englishName":"","manufacturer":"","material":"","variant":"","category":""}`;
+
+        const userPrompt = `请从以下产品标签 OCR 文字中提取色卡信息：\n\n${ocrText}`;
+
+        try {
+            const response = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 200
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 请求失败: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content.trim();
+            
+            // 提取 JSON（LLM 可能包裹在 ```json 中）
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('LLM 返回格式异常');
+            
+            const parsed = JSON.parse(jsonMatch[0]);
+            
+            // 验证并规范化返回字段
+            return {
+                chineseName: parsed.chineseName || '',
+                englishName: parsed.englishName || '',
+                manufacturer: parsed.manufacturer || '',
+                material: parsed.material || '',
+                variant: parsed.variant || '',
+                category: this._normalizeCategory(parsed.category || '')
+            };
+        } catch (e) {
+            console.warn('LLM 解析失败，回退到关键词方案:', e);
+            return null; // 返回 null 表示失败，调用方回退到关键词方案
+        }
+    },
+
+    _normalizeCategory(cat) {
+        const valid = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'white', 'gray'];
+        const lower = (cat || '').toLowerCase().trim();
+        return valid.includes(lower) ? lower : '';
+    }
+};
+
 class CardManager {
     constructor() {
         this.cards = Storage.loadCards();
@@ -1576,8 +1651,8 @@ class CardManager {
             this.scanOCRConfidence = result.data.confidence;
 
             // 延迟一下让用户看到完成状态
-            setTimeout(() => {
-                this.showScanResult(this.scanOCRResult);
+            setTimeout(async () => {
+                await this.showScanResult(this.scanOCRResult);
             }, 500);
 
         } catch (error) {
@@ -1588,7 +1663,7 @@ class CardManager {
         }
     }
 
-    showScanResult(rawText) {
+    async showScanResult(rawText) {
         // 隐藏进度条
         document.getElementById('scanProgress').style.display = 'none';
         
@@ -1598,8 +1673,17 @@ class CardManager {
         // 显示原始识别文字
         document.getElementById('scanRawText').textContent = rawText;
 
-        // 解析识别文字
-        const parsedInfo = this.parseOCRText(rawText);
+        // 显示 AI 解析提示
+        const parsedInfoEl = document.getElementById('scanParsedInfo');
+        if (parsedInfoEl) {
+            parsedInfoEl.innerHTML = '<h4>解析中的色卡信息</h4><p style="color:var(--accent-primary);"> AI 正在智能识别中...</p>';
+        }
+
+        // 优先用 LLM 解析，失败回退关键词方案
+        let parsedInfo = await LLMParser.parse(rawText);
+        if (!parsedInfo) {
+            parsedInfo = this.parseOCRText(rawText);
+        }
         
         // 填充到表单
         document.getElementById('scanChineseName').value = parsedInfo.chineseName || '';
