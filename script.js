@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'color_cards_data';
 const TEMPLATE_KEY = 'color_card_template';
 const MATERIALS_KEY = 'color_card_materials';
+const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const VERSION_KEY = 'color_cards_version';
 const CURRENT_VERSION = '2.0';
@@ -637,6 +638,63 @@ class ModalManager {
     }
 }
 
+// ===== 库存变动日志管理器 =====
+class StockLogManager {
+    constructor() {
+        this.logs = this.load();
+    }
+
+    load() {
+        try {
+            const saved = localStorage.getItem(STOCK_LOG_KEY);
+            return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+    }
+
+    save() {
+        try {
+            if (this.logs.length > 500) {
+                this.logs = this.logs.slice(0, 500);
+            }
+            localStorage.setItem(STOCK_LOG_KEY, JSON.stringify(this.logs));
+        } catch { /* localStorage full */ }
+    }
+
+    add(cardId, cardName, before, after, type = 'manual') {
+        const change = after - before;
+        const entry = {
+            id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 6),
+            cardId,
+            cardName,
+            change,
+            before,
+            after,
+            type, // 'manual' | 'scan' | 'batch' | 'add'
+            timestamp: new Date().toISOString()
+        };
+        this.logs.unshift(entry);
+        this.save();
+        return entry;
+    }
+
+    getFiltered(type = 'all', query = '') {
+        let list = [...this.logs];
+        if (type !== 'all') {
+            list = list.filter(l => l.type === type);
+        }
+        if (query) {
+            const q = query.toLowerCase();
+            list = list.filter(l => l.cardName.toLowerCase().includes(q));
+        }
+        return list;
+    }
+
+    clearAll() {
+        this.logs = [];
+        this.save();
+    }
+}
+
 class CardManager {
     constructor() {
         this.cards = Storage.loadCards();
@@ -653,6 +711,7 @@ class CardManager {
         this.currentSort = 'default';    // 当前排序方式
         this.batchMode = false;          // 批量操作模式
         this.selectedCards = new Set();  // 批量选中的卡片 ID
+        this.stockLogManager = new StockLogManager();
         this.bindEvents();
     }
 
@@ -777,6 +836,25 @@ class CardManager {
         document.getElementById('batchApplyBtn').addEventListener('click', () => this.batchApply());
         document.getElementById('batchStockOp').addEventListener('change', (e) => {
             document.getElementById('batchStockVal').disabled = !e.target.value;
+        });
+
+        // 库存日志
+        document.getElementById('stockLogBtn').addEventListener('click', () => this.openStockLog());
+        document.getElementById('stockLogCloseBtn').addEventListener('click', () => this.closeStockLog());
+        document.getElementById('stockLogClearBtn').addEventListener('click', () => {
+            if (confirm('确定要清空所有库存日志吗？此操作不可撤销。')) {
+                this.stockLogManager.clearAll();
+                this.renderStockLog();
+            }
+        });
+        document.getElementById('stockLogFilter').addEventListener('change', () => this.renderStockLog());
+        document.getElementById('stockLogSearch').addEventListener('input', () => this.renderStockLog());
+
+        // 点击外部关闭日志模态框
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('stockLogModal')) {
+                this.closeStockLog();
+            }
         });
     }
 
@@ -1033,12 +1111,18 @@ class CardManager {
 
         this.cards.forEach(card => {
             if (!this.selectedCards.has(card.id)) return;
+            const oldQuantity = card.quantity || 0;
             if (manufacturer) card.manufacturer = manufacturer;
             if (material) card.material = material;
             if (stockOp && !isNaN(stockVal)) {
-                if (stockOp === '+') card.quantity = (card.quantity || 0) + stockVal;
-                else if (stockOp === '-') card.quantity = Math.max(0, (card.quantity || 0) - stockVal);
+                if (stockOp === '+') card.quantity = oldQuantity + stockVal;
+                else if (stockOp === '-') card.quantity = Math.max(0, oldQuantity - stockVal);
                 else card.quantity = stockVal;
+            }
+            // 记录库存变动
+            const newQuantity = card.quantity || 0;
+            if (oldQuantity !== newQuantity) {
+                this.stockLogManager.add(card.id, card.chineseName, oldQuantity, newQuantity, 'batch');
             }
         });
 
@@ -1048,6 +1132,51 @@ class CardManager {
         }
         this.selectedCards.clear();
         this.applyFilters();
+    }
+
+    // ===== 库存日志功能 =====
+    openStockLog() {
+        document.getElementById('stockLogModal').style.display = 'block';
+        this.renderStockLog();
+    }
+
+    closeStockLog() {
+        document.getElementById('stockLogModal').style.display = 'none';
+    }
+
+    renderStockLog() {
+        const container = document.getElementById('stockLogList');
+        const filter = document.getElementById('stockLogFilter').value;
+        const search = document.getElementById('stockLogSearch').value;
+        const logs = this.stockLogManager.getFiltered(filter, search);
+
+        if (logs.length === 0) {
+            container.innerHTML = `<div class="log-empty">暂无库存变动记录</div>`;
+            return;
+        }
+
+        const typeLabels = { manual: '手动编辑', scan: '扫描识别', batch: '批量操作', add: '新增色卡' };
+        const typeColors = { manual: '#8b5cf6', scan: '#06b6d4', batch: '#f59e0b', add: '#10b981' };
+
+        container.innerHTML = logs.map(log => {
+            const time = new Date(log.timestamp);
+            const timeStr = `${time.getFullYear()}-${String(time.getMonth()+1).padStart(2,'0')}-${String(time.getDate()).padStart(2,'0')} ${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+            const changeClass = log.change > 0 ? 'log-increase' : 'log-decrease';
+            const changeSymbol = log.change > 0 ? '+' : '';
+            const changeText = `${changeSymbol}${log.change}`;
+
+            return `<div class="log-item">
+                <div class="log-left">
+                    <span class="log-type-badge" style="background:${typeColors[log.type]}20;color:${typeColors[log.type]}">${typeLabels[log.type] || log.type}</span>
+                    <span class="log-name">${log.cardName}</span>
+                </div>
+                <div class="log-right">
+                    <span class="${changeClass}">${changeText}</span>
+                    <span class="log-quantity">${log.before} → ${log.after}</span>
+                    <span class="log-time">${timeStr}</span>
+                </div>
+            </div>`;
+        }).join('');
     }
 
     // ===== 扫描识别功能 =====
@@ -1275,11 +1404,12 @@ class CardManager {
             return;
         }
 
-        if (this.matchedCardId) {
+            if (this.matchedCardId) {
             // 更新现有色卡（增加库存）
             const card = this.cards.find(c => c.id === this.matchedCardId);
             if (card) {
-                card.quantity = (card.quantity || 0) + 1;
+                const oldQuantity = card.quantity || 0;
+                card.quantity = oldQuantity + 1;
                 
                 // 更新其他信息（如果用户修改了）
                 card.englishName = englishName || card.englishName;
@@ -1289,6 +1419,9 @@ class CardManager {
 
                 Storage.saveCards(this.cards);
                 CloudStorage.updateCard(keysToSnake(card));
+                
+                // 记录扫描识别库存变动
+                this.stockLogManager.add(card.id, card.chineseName, oldQuantity, card.quantity, 'scan');
                 
                 alert(`✅ 已更新色卡「${card.chineseName}」的库存，当前库存：${card.quantity} 件`);
             }
@@ -1309,6 +1442,9 @@ class CardManager {
             this.cards.push(newCard);
             Storage.saveCards(this.cards);
             CloudStorage.addCard(keysToSnake(newCard));
+
+            // 记录扫描新增色卡
+            this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
 
             alert(`✅ 已创建新色卡「${chineseName}」`);
         }
@@ -1546,6 +1682,10 @@ class CardManager {
             };
 
             this.cards.push(newCard);
+            // 记录新增色卡库存
+            if (quantity > 0) {
+                this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
+            }
             Storage.saveCards(this.cards);
             CloudStorage.addCard(newCard);
             this.renderCards();
@@ -1565,6 +1705,9 @@ class CardManager {
             const cardIndex = this.cards.findIndex(c => c.id === this.currentEditingCard.id);
             if (cardIndex === -1) return;
 
+            const oldCard = this.cards[cardIndex];
+            const oldQuantity = oldCard.quantity || 0;
+
             let newImage = this.currentEditingCard.image;
             if (this.modalManager.previews.editImage.innerHTML) {
                 newImage = this.modalManager.previews.editImage.querySelector('img').src;
@@ -1572,6 +1715,7 @@ class CardManager {
 
             const material = document.getElementById('editMaterial').value;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.edit);
+            const newQuantity = parseInt(document.getElementById('editQuantity').value, 10) || 0;
 
             this.cards[cardIndex] = {
                 ...this.cards[cardIndex],
@@ -1582,8 +1726,13 @@ class CardManager {
                 image: newImage,
                 chineseName: document.getElementById('editChineseName').value,
                 config: config,
-                quantity: parseInt(document.getElementById('editQuantity').value, 10) || 0
+                quantity: newQuantity
             };
+
+            // 记录库存变动
+            if (oldQuantity !== newQuantity) {
+                this.stockLogManager.add(oldCard.id, oldCard.chineseName, oldQuantity, newQuantity, 'manual');
+            }
 
             Storage.saveCards(this.cards);
             CloudStorage.updateCard(this.cards[cardIndex]);
