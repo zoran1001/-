@@ -178,6 +178,13 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="color">实际颜色</label>
+                    <div class="color-picker-row">
+                        <input type="color" id="color" name="color" value="#888888">
+                        <span class="color-hex-label">#888888</span>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label for="quantity">库存数量</label>
                     <input type="number" id="quantity" name="quantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
                 </div>
@@ -243,6 +250,13 @@
                         <option value="white">白色</option>
                         <option value="gray">灰色</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label for="editColor">实际颜色</label>
+                    <div class="color-picker-row">
+                        <input type="color" id="editColor" name="editColor" value="#888888">
+                        <span class="color-hex-label" id="editColorLabel">#888888</span>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="editQuantity">库存数量</label>
@@ -433,6 +447,13 @@
                                 <option value="white">白色</option>
                                 <option value="gray">灰色</option>
                             </select>
+                        </div>
+                        <div class="scan-info-item">
+                            <label>实际颜色：</label>
+                            <div class="color-picker-row">
+                                <input type="color" id="scanColor" value="#888888">
+                                <span class="color-hex-label" id="scanColorLabel">#888888</span>
+                            </div>
                         </div>
                     </div>
                 </div>

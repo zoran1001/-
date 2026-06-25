@@ -614,6 +614,16 @@ class ModalManager {
 
     open(modalName) {
         this.modals[modalName].style.display = 'block';
+        
+        if (modalName === 'addCard') {
+            // 重置取色器
+            const colorInput = document.getElementById('color');
+            if (colorInput) {
+                colorInput.value = '#888888';
+                const hexLabel = document.querySelector('#color + .color-hex-label');
+                if (hexLabel) hexLabel.textContent = '#888888';
+            }
+        }
     }
 
     close(modalName) {
@@ -836,6 +846,17 @@ class CardManager {
         document.getElementById('batchApplyBtn').addEventListener('click', () => this.batchApply());
         document.getElementById('batchStockOp').addEventListener('change', (e) => {
             document.getElementById('batchStockVal').disabled = !e.target.value;
+        });
+
+        // 颜色取色器联动
+        document.getElementById('color').addEventListener('input', (e) => {
+            document.querySelector('#color + .color-hex-label').textContent = e.target.value;
+        });
+        document.getElementById('editColor').addEventListener('input', (e) => {
+            document.getElementById('editColorLabel').textContent = e.target.value;
+        });
+        document.getElementById('scanColor').addEventListener('input', (e) => {
+            document.getElementById('scanColorLabel').textContent = e.target.value;
         });
 
         // 库存日志
@@ -1398,6 +1419,7 @@ class CardManager {
         const manufacturer = document.getElementById('scanManufacturer').value.trim();
         const material = document.getElementById('scanMaterial').value.trim();
         const category = document.getElementById('scanCategory').value;
+        const scanColor = document.getElementById('scanColor').value;
 
         if (!chineseName) {
             alert('请输入中文名！');
@@ -1436,7 +1458,8 @@ class CardManager {
                 category: category || 'gray',
                 quantity: 1,
                 config: [],
-                image: ''
+                image: '',
+                color: scanColor || Utils.getColorForCategory(category || 'gray')
             };
 
             this.cards.push(newCard);
@@ -1494,7 +1517,10 @@ class CardManager {
                 ${batchCheckHtml}
                 ${imageHtml}
                 <div class="card-content">
-                    <h3 class="card-title">${card.chineseName}</h3>
+                    <div class="card-title-row">
+                        <span class="card-color-dot" style="background-color: ${color};" title="${color}"></span>
+                        <h3 class="card-title">${card.chineseName}</h3>
+                    </div>
                     <p class="card-subtitle">${card.englishName}</p>
                     <div class="card-info">
                         <div class="info-item">
@@ -1599,6 +1625,8 @@ class CardManager {
         document.getElementById('editMaterial').value = card.material;
         document.getElementById('editCategory').value = card.category;
         document.getElementById('editQuantity').value = card.quantity || 0;
+        document.getElementById('editColor').value = card.color || Utils.getColorForCategory(card.category);
+        document.getElementById('editColorLabel').textContent = card.color || Utils.getColorForCategory(card.category);
 
         this.modalManager.previews.editImage.innerHTML = '';
 
@@ -1665,6 +1693,7 @@ class CardManager {
             const manufacturer = document.getElementById('manufacturer').value;
             const material = document.getElementById('material').value;
             const quantity = parseInt(document.getElementById('quantity').value, 10) || 0;
+            const color = document.getElementById('color').value;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.add);
 
             const newCard = {
@@ -1678,7 +1707,8 @@ class CardManager {
                     : '',
                 chineseName: document.getElementById('chineseName').value,
                 config: config,
-                quantity: quantity
+                quantity: quantity,
+                color: color
             };
 
             this.cards.push(newCard);
@@ -1716,6 +1746,7 @@ class CardManager {
             const material = document.getElementById('editMaterial').value;
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.edit);
             const newQuantity = parseInt(document.getElementById('editQuantity').value, 10) || 0;
+            const newColor = document.getElementById('editColor').value;
 
             this.cards[cardIndex] = {
                 ...this.cards[cardIndex],
@@ -1726,7 +1757,8 @@ class CardManager {
                 image: newImage,
                 chineseName: document.getElementById('editChineseName').value,
                 config: config,
-                quantity: newQuantity
+                quantity: newQuantity,
+                color: newColor
             };
 
             // 记录库存变动

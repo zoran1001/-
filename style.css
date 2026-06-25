@@ -848,13 +848,29 @@ header p {
     padding: 24px;
 }
 
+.card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.card-color-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid var(--border-default);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
+}
+
 .card-title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 4px;
     letter-spacing: -0.01em;
     transition: font-size var(--transition-normal);
+    margin-bottom: 0;
 }
 
 .size-medium .card-title {
@@ -1831,20 +1847,41 @@ header p {
     min-height: 80px;
 }
 
-.form-group #color {
-    width: 50px;
-    height: 44px;
-    padding: 2px;
-    border: 1px solid var(--border-default);
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-    background: var(--bg-input);
+.color-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-.form-group #colorHex {
-    width: calc(100% - 60px);
-    display: inline-block;
-    margin-left: 10px;
+.color-picker-row input[type="color"] {
+    width: 48px;
+    height: 44px;
+    padding: 3px;
+    border: 2px solid var(--border-default);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    flex-shrink: 0;
+}
+
+.color-picker-row input[type="color"]:hover {
+    border-color: var(--accent-primary);
+}
+
+.color-picker-row input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-row input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+}
+
+.color-hex-label {
+    font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    user-select: none;
 }
 
 .form-group #imageUpload,
