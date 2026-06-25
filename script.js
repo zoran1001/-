@@ -651,6 +651,8 @@ class CardManager {
         this.currentCategory = 'all';    // 当前分类筛选
         this.currentSearch = '';         // 当前搜索词
         this.currentSort = 'default';    // 当前排序方式
+        this.batchMode = false;          // 批量操作模式
+        this.selectedCards = new Set();  // 批量选中的卡片 ID
         this.bindEvents();
     }
 
@@ -765,6 +767,16 @@ class CardManager {
                 document.getElementById('scanImageUpload').files = e.dataTransfer.files;
                 this.handleScanImageUpload({ target: { files: [file] } });
             }
+        });
+
+        // 批量操作模式
+        document.getElementById('batchModeBtn').addEventListener('click', () => this.toggleBatchMode());
+        document.getElementById('batchCancelBtn').addEventListener('click', () => this.toggleBatchMode());
+        document.getElementById('batchSelectAll').addEventListener('click', () => this.batchSelectAll());
+        document.getElementById('batchDeleteBtn').addEventListener('click', () => this.batchDelete());
+        document.getElementById('batchApplyBtn').addEventListener('click', () => this.batchApply());
+        document.getElementById('batchStockOp').addEventListener('change', (e) => {
+            document.getElementById('batchStockVal').disabled = !e.target.value;
         });
     }
 
@@ -884,6 +896,158 @@ class CardManager {
 
         text.innerHTML = `<strong>⚠ 库存预警：</strong>${names}`;
         warning.classList.add('show');
+    }
+
+    // ===== 批量操作功能 =====
+    toggleBatchMode() {
+        this.batchMode = !this.batchMode;
+        const toolbar = document.getElementById('batchToolbar');
+        const btn = document.getElementById('batchModeBtn');
+        const section = document.querySelector('.cards-section');
+
+        if (this.batchMode) {
+            this.selectedCards.clear();
+            toolbar.classList.add('show');
+            btn.classList.add('active');
+            section.style.paddingBottom = '120px';
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量中...`;
+            this.updateBatchSelects();
+        } else {
+            this.selectedCards.clear();
+            toolbar.classList.remove('show');
+            btn.classList.remove('active');
+            section.style.paddingBottom = '60px';
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作`;
+        }
+        this.applyFilters();
+    }
+
+    updateBatchSelects() {
+        const mfSelect = document.getElementById('batchManufacturer');
+        const mtSelect = document.getElementById('batchMaterial');
+        const manufacturers = this.materialManager.manufacturers || [];
+        const materials = this.materialManager.materials || [];
+
+        mfSelect.innerHTML = '<option value="">不修改</option>' + manufacturers.map(m => `<option value="${m}">${m}</option>`).join('');
+        mtSelect.innerHTML = '<option value="">不修改</option>' + materials.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+
+    batchSelectAll() {
+        const currentCards = this.getFilteredCards();
+        const btn = document.getElementById('batchSelectAll');
+        if (this.selectedCards.size === currentCards.length) {
+            this.selectedCards.clear();
+            btn.textContent = '全选';
+            btn.classList.remove('active');
+        } else {
+            currentCards.forEach(c => this.selectedCards.add(c.id));
+            btn.textContent = '取消全选';
+            btn.classList.add('active');
+        }
+        this.updateBatchCount();
+        this.applyFilters();
+    }
+
+    toggleCardSelect(cardId) {
+        if (this.selectedCards.has(cardId)) {
+            this.selectedCards.delete(cardId);
+        } else {
+            this.selectedCards.add(cardId);
+        }
+        this.updateBatchCount();
+        this.updateSelectAllBtn();
+    }
+
+    updateBatchCount() {
+        document.getElementById('batchCount').textContent = `已选 ${this.selectedCards.size} 张`;
+    }
+
+    updateSelectAllBtn() {
+        const btn = document.getElementById('batchSelectAll');
+        const currentCards = this.getFilteredCards();
+        if (this.selectedCards.size === currentCards.length && currentCards.length > 0) {
+            btn.textContent = '取消全选';
+            btn.classList.add('active');
+        } else {
+            btn.textContent = '全选';
+            btn.classList.remove('active');
+        }
+    }
+
+    getFilteredCards() {
+        let cards = this.cards;
+        if (this.currentCategory !== 'all') {
+            cards = cards.filter(c => c.category === this.currentCategory);
+        }
+        if (this.currentSearch) {
+            const kw = this.currentSearch.toLowerCase();
+            cards = cards.filter(c => {
+                return (c.chineseName || '').toLowerCase().includes(kw)
+                    || (c.englishName || '').toLowerCase().includes(kw)
+                    || (c.manufacturer || '').toLowerCase().includes(kw)
+                    || (c.material || '').toLowerCase().includes(kw);
+            });
+        }
+        return cards;
+    }
+
+    batchDelete() {
+        if (this.selectedCards.size === 0) return;
+        const count = this.selectedCards.size;
+        if (!confirm(`确定要删除选中的 ${count} 张色卡吗？此操作不可撤销。`)) return;
+
+        this.cards = this.cards.filter(c => !this.selectedCards.has(c.id));
+        Storage.saveCards(this.cards);
+        if (CloudStorage.isAvailable()) {
+            CloudStorage.saveCards(this.cards);
+        }
+        this.selectedCards.clear();
+        this.applyFilters();
+    }
+
+    batchApply() {
+        if (this.selectedCards.size === 0) {
+            alert('请先选择色卡');
+            return;
+        }
+
+        const manufacturer = document.getElementById('batchManufacturer').value;
+        const material = document.getElementById('batchMaterial').value;
+        const stockOp = document.getElementById('batchStockOp').value;
+        const stockVal = parseInt(document.getElementById('batchStockVal').value);
+
+        let changes = [];
+        if (manufacturer) changes.push(`产商 → "${manufacturer}"`);
+        if (material) changes.push(`材料 → "${material}"`);
+        if (stockOp && !isNaN(stockVal)) {
+            const opText = stockOp === '+' ? `库存 +${stockVal}` : stockOp === '-' ? `库存 -${stockVal}` : `库存 = ${stockVal}`;
+            changes.push(opText);
+        }
+
+        if (changes.length === 0) {
+            alert('请至少选择一项修改');
+            return;
+        }
+
+        if (!confirm(`将对选中的 ${this.selectedCards.size} 张色卡执行以下修改：\n${changes.join('\n')}\n\n确认执行？`)) return;
+
+        this.cards.forEach(card => {
+            if (!this.selectedCards.has(card.id)) return;
+            if (manufacturer) card.manufacturer = manufacturer;
+            if (material) card.material = material;
+            if (stockOp && !isNaN(stockVal)) {
+                if (stockOp === '+') card.quantity = (card.quantity || 0) + stockVal;
+                else if (stockOp === '-') card.quantity = Math.max(0, (card.quantity || 0) - stockVal);
+                else card.quantity = stockVal;
+            }
+        });
+
+        Storage.saveCards(this.cards);
+        if (CloudStorage.isAvailable()) {
+            CloudStorage.saveCards(this.cards);
+        }
+        this.selectedCards.clear();
+        this.applyFilters();
     }
 
     // ===== 扫描识别功能 =====
@@ -1174,15 +1338,24 @@ class CardManager {
         cards.forEach(card => {
             const cardElement = document.createElement('div');
             cardElement.className = 'card';
+            if (this.batchMode && this.selectedCards.has(card.id)) {
+                cardElement.classList.add('selected');
+            }
             cardElement.setAttribute('role', 'listitem');
             
             const color = card.color || Utils.getColorForCategory(card.category);
             const imageHtml = card.image 
                 ? `<div class="card-image"><img src="${card.image}" alt="${card.chineseName}"></div>`
                 : `<div class="card-color-preview" style="background-color: ${color};"></div>`;
+
+            const batchCheckHtml = this.batchMode
+                ? `<div class="card-check" data-id="${card.id}"><div class="card-checkbox ${this.selectedCards.has(card.id) ? 'checked' : ''}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div></div>`
+                : '';
+            
             const configText = Utils.configToText(card.config);
             
             cardElement.innerHTML = `
+                ${batchCheckHtml}
                 ${imageHtml}
                 <div class="card-content">
                     <h3 class="card-title">${card.chineseName}</h3>
@@ -1216,6 +1389,10 @@ class CardManager {
 
         document.querySelectorAll('.card-action-btn.view').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                if (this.batchMode) {
+                    e.preventDefault();
+                    return;
+                }
                 const cardId = parseInt(e.target.getAttribute('data-id'));
                 this.showDetail(cardId);
             });
@@ -1223,8 +1400,22 @@ class CardManager {
 
         document.querySelectorAll('.card-action-btn.edit').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                if (this.batchMode) {
+                    e.preventDefault();
+                    return;
+                }
                 const cardId = parseInt(e.target.getAttribute('data-id'));
                 this.showEdit(cardId);
+            });
+        });
+
+        // 批量模式：复选框事件
+        document.querySelectorAll('.card-check').forEach(check => {
+            check.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cardId = parseInt(check.getAttribute('data-id'));
+                this.toggleCardSelect(cardId);
+                this.applyFilters();
             });
         });
 
