@@ -106,7 +106,9 @@ const CloudStorage = {
                     chineseName: card.chineseName,
                     config: card.config,
                     quantity: card.quantity,
-                    color: card.color
+                    color: card.color,
+                    notes: card.notes || '',
+                    sortOrder: card.sortOrder || 0
                 })));
             if (error) throw error;
             return true;
@@ -131,7 +133,9 @@ const CloudStorage = {
                     chineseName: card.chineseName,
                     config: card.config,
                     quantity: card.quantity,
-                    color: card.color
+                    color: card.color,
+                    notes: card.notes || '',
+                    sortOrder: card.sortOrder || 0
                 }));
             if (error) throw error;
             return true;
@@ -155,7 +159,9 @@ const CloudStorage = {
                     chineseName: card.chineseName,
                     config: card.config,
                     quantity: card.quantity,
-                    color: card.color
+                    color: card.color,
+                    notes: card.notes || '',
+                    sortOrder: card.sortOrder || 0
                 }))
                 .eq('id', card.id);
             if (error) throw error;
@@ -716,6 +722,118 @@ class StockLogManager {
     }
 }
 
+// ===== Toast 通知系统 =====
+const Toast = {
+    show(message, actionLabel, actionFn, duration = 5000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        let html = `<span>${message}</span>`;
+        if (actionLabel && actionFn) {
+            html += `<button class="toast-action">${actionLabel}</button>`;
+        }
+        toast.innerHTML = html;
+        container.appendChild(toast);
+
+        if (actionLabel && actionFn) {
+            toast.querySelector('.toast-action').addEventListener('click', () => {
+                actionFn();
+                this._remove(toast);
+            });
+        }
+
+        setTimeout(() => this._remove(toast), duration);
+    },
+
+    _remove(toast) {
+        if (!toast.parentNode) return;
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.remove(), 250);
+    }
+};
+
+// ===== 撤销管理器 =====
+class UndoManager {
+    constructor(cardManager) {
+        this.cardManager = cardManager;
+        this.stack = [];
+        this.maxSize = 20;
+    }
+
+    push(action) {
+        // action: { type, data, description }
+        this.stack.unshift(action);
+        if (this.stack.length > this.maxSize) this.stack.pop();
+    }
+
+    canUndo() {
+        return this.stack.length > 0;
+    }
+
+    async undo() {
+        const action = this.stack.shift();
+        if (!action) return false;
+
+        const cm = this.cardManager;
+
+        switch (action.type) {
+            case 'delete': {
+                // Restore deleted cards
+                const cards = action.data.cards;
+                cards.forEach(c => {
+                    if (!cm.cards.find(x => x.id === c.id)) {
+                        cm.cards.push(c);
+                    }
+                });
+                Storage.saveCards(cm.cards);
+                if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
+                cm.applyFilters();
+                return `已恢复 ${cards.length} 张色卡`;
+            }
+            case 'edit': {
+                // Restore previous card state
+                const { cardId, previousState } = action.data;
+                const idx = cm.cards.findIndex(c => c.id === cardId);
+                if (idx !== -1) {
+                    cm.cards[idx] = { ...cm.cards[idx], ...previousState };
+                    Storage.saveCards(cm.cards);
+                    CloudStorage.updateCard(cm.cards[idx]);
+                    cm.applyFilters();
+                }
+                return `已撤销编辑`;
+            }
+            case 'batch': {
+                // Restore batch operation
+                const { previousStates } = action.data;
+                previousStates.forEach(({ cardId, state }) => {
+                    const idx = cm.cards.findIndex(c => c.id === cardId);
+                    if (idx !== -1) {
+                        cm.cards[idx] = { ...cm.cards[idx], ...state };
+                    }
+                });
+                Storage.saveCards(cm.cards);
+                if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
+                cm.applyFilters();
+                return `已撤销批量操作`;
+            }
+            case 'reorder': {
+                // Restore previous order
+                cm.cards = action.data.previousOrder;
+                Storage.saveCards(cm.cards);
+                if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
+                cm.applyFilters();
+                return `已撤销排序`;
+            }
+        }
+        return false;
+    }
+
+    showUndoToast(description) {
+        Toast.show(description, '撤销', () => this.undo());
+    }
+}
+
 class CardManager {
     constructor() {
         this.cards = Storage.loadCards();
@@ -733,6 +851,8 @@ class CardManager {
         this.batchMode = false;          // 批量操作模式
         this.selectedCards = new Set();  // 批量选中的卡片 ID
         this.stockLogManager = new StockLogManager();
+        this.undoManager = new UndoManager(this);
+        this.draggedCardId = null;
         this.bindEvents();
         this.setupDelegatedEvents();
     }
@@ -754,6 +874,11 @@ class CardManager {
                 } else if (e.key === 'f' || e.key === 'F') {
                     e.preventDefault();
                     document.getElementById('searchInput').focus();
+                } else if (e.key === 'z' || e.key === 'Z') {
+                    e.preventDefault();
+                    if (this.undoManager.canUndo()) {
+                        this.undoManager.undo();
+                    }
                 }
             }
         });
@@ -904,6 +1029,17 @@ class CardManager {
         window.addEventListener('click', (e) => {
             if (e.target === document.getElementById('stockLogModal')) {
                 this.closeStockLog();
+            }
+        });
+
+        // 统计面板
+        document.getElementById('statsBtn').addEventListener('click', () => this.showStats());
+        document.getElementById('closeStatsModalBtn').addEventListener('click', () => {
+            document.getElementById('statsModal').style.display = 'none';
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('statsModal')) {
+                document.getElementById('statsModal').style.display = 'none';
             }
         });
     }
@@ -1149,7 +1285,8 @@ class CardManager {
                 return (c.chineseName || '').toLowerCase().includes(kw)
                     || (c.englishName || '').toLowerCase().includes(kw)
                     || (c.manufacturer || '').toLowerCase().includes(kw)
-                    || (c.material || '').toLowerCase().includes(kw);
+                    || (c.material || '').toLowerCase().includes(kw)
+                    || (c.notes || '').toLowerCase().includes(kw);
             });
         }
         return cards;
@@ -1160,6 +1297,7 @@ class CardManager {
         const count = this.selectedCards.size;
         if (!confirm(`确定要删除选中的 ${count} 张色卡吗？此操作不可撤销。`)) return;
 
+        const deletedCards = this.cards.filter(c => this.selectedCards.has(c.id));
         this.cards = this.cards.filter(c => !this.selectedCards.has(c.id));
         Storage.saveCards(this.cards);
         if (CloudStorage.isAvailable()) {
@@ -1167,6 +1305,14 @@ class CardManager {
         }
         this.selectedCards.clear();
         this.applyFilters();
+
+        // Undo support
+        this.undoManager.push({
+            type: 'delete',
+            data: { cards: deletedCards },
+            description: `已批量删除 ${count} 张色卡`
+        });
+        this.undoManager.showUndoToast(`已批量删除 ${count} 张色卡`);
     }
 
     batchApply() {
@@ -1524,7 +1670,9 @@ class CardManager {
                 quantity: 1,
                 config: [],
                 image: '',
-                color: scanColor || Utils.getColorForCategory(category || 'gray')
+                color: scanColor || Utils.getColorForCategory(category || 'gray'),
+                notes: '',
+                sortOrder: this.cards.length
             };
 
             this.cards.push(newCard);
@@ -1590,6 +1738,37 @@ class CardManager {
                 cardElement.classList.add('selected');
             }
             cardElement.setAttribute('role', 'listitem');
+
+            // Drag-drop support (only when not in batch mode and sort is default)
+            if (!this.batchMode && this.currentSort === 'default') {
+                cardElement.setAttribute('draggable', 'true');
+                cardElement.addEventListener('dragstart', (e) => {
+                    this.draggedCardId = card.id;
+                    cardElement.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                cardElement.addEventListener('dragend', () => {
+                    cardElement.classList.remove('dragging');
+                    this.cardsContainer.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+                    this.draggedCardId = null;
+                });
+                cardElement.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (card.id !== this.draggedCardId) {
+                        cardElement.classList.add('drag-over');
+                    }
+                });
+                cardElement.addEventListener('dragleave', () => {
+                    cardElement.classList.remove('drag-over');
+                });
+                cardElement.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    cardElement.classList.remove('drag-over');
+                    if (!this.draggedCardId || this.draggedCardId === card.id) return;
+                    this.handleCardDrop(this.draggedCardId, card.id);
+                });
+            }
             
             const color = card.color || Utils.getColorForCategory(card.category);
             const imageHtml = card.image 
@@ -1601,6 +1780,9 @@ class CardManager {
                 : '';
             
             const configText = Utils.configToText(card.config);
+            const notesHtml = card.notes && card.notes.trim()
+                ? `<div class="card-notes-preview">${card.notes}</div>`
+                : '';
             
             cardElement.innerHTML = `
                 ${batchCheckHtml}
@@ -1629,6 +1811,7 @@ class CardManager {
                         <div class="config-title">配置信息</div>
                         <div class="config-content">${configText}</div>
                     </div>
+                    ${notesHtml}
                     <div class="card-actions">
                         <button class="card-action-btn view" data-id="${card.id}" type="button">查看</button>
                         <button class="card-action-btn edit" data-id="${card.id}" type="button">编辑</button>
@@ -1654,6 +1837,16 @@ class CardManager {
         document.getElementById('detailMaterial').textContent = card.material;
         document.getElementById('detailCategory').textContent = categoryNames[card.category] || card.category;
         document.getElementById('detailQuantity').textContent = (card.quantity || 0) + ' 件';
+
+        // Notes
+        const notesRow = document.getElementById('detailNotesRow');
+        const notesEl = document.getElementById('detailNotes');
+        if (card.notes && card.notes.trim()) {
+            notesRow.style.display = 'flex';
+            notesEl.textContent = card.notes;
+        } else {
+            notesRow.style.display = 'none';
+        }
 
         const configText = Utils.configToText(card.config);
         document.getElementById('detailConfig').textContent = configText;
@@ -1683,6 +1876,7 @@ class CardManager {
         document.getElementById('editMaterial').value = card.material;
         document.getElementById('editCategory').value = card.category;
         document.getElementById('editQuantity').value = card.quantity || 0;
+        document.getElementById('editNotes').value = card.notes || '';
         document.getElementById('editColor').value = card.color || Utils.getColorForCategory(card.category);
         document.getElementById('editColorLabel').textContent = card.color || Utils.getColorForCategory(card.category);
 
@@ -1761,6 +1955,7 @@ class CardManager {
 
             const quantity = parseInt(document.getElementById('quantity').value, 10) || 0;
             const color = document.getElementById('color').value;
+            const notes = document.getElementById('notes').value.trim();
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.add);
 
             const newCard = {
@@ -1775,7 +1970,9 @@ class CardManager {
                 chineseName,
                 config,
                 quantity,
-                color
+                color,
+                notes,
+                sortOrder: this.cards.length
             };
 
             this.cards.push(newCard);
@@ -1804,6 +2001,20 @@ class CardManager {
             const oldCard = this.cards[cardIndex];
             const oldQuantity = oldCard.quantity || 0;
 
+            // Save previous state for undo
+            const previousState = {
+                category: oldCard.category,
+                manufacturer: oldCard.manufacturer,
+                englishName: oldCard.englishName,
+                material: oldCard.material,
+                image: oldCard.image,
+                chineseName: oldCard.chineseName,
+                config: oldCard.config,
+                quantity: oldCard.quantity,
+                color: oldCard.color,
+                notes: oldCard.notes || ''
+            };
+
             let newImage = this.currentEditingCard.image;
             if (this.modalManager.previews.editImage.innerHTML) {
                 newImage = this.modalManager.previews.editImage.querySelector('img').src;
@@ -1813,6 +2024,7 @@ class CardManager {
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.edit);
             const newQuantity = parseInt(document.getElementById('editQuantity').value, 10) || 0;
             const newColor = document.getElementById('editColor').value;
+            const newNotes = document.getElementById('editNotes').value.trim();
 
             this.cards[cardIndex] = {
                 ...this.cards[cardIndex],
@@ -1824,8 +2036,16 @@ class CardManager {
                 chineseName: document.getElementById('editChineseName').value,
                 config: config,
                 quantity: newQuantity,
-                color: newColor
+                color: newColor,
+                notes: newNotes
             };
+
+            // Record undo
+            this.undoManager.push({
+                type: 'edit',
+                data: { cardId: oldCard.id, previousState },
+                description: `已编辑「${oldCard.chineseName}」`
+            });
 
             // 记录库存变动
             if (oldQuantity !== newQuantity) {
@@ -1850,11 +2070,20 @@ class CardManager {
         }
 
         try {
+            const deletedCard = { ...this.currentEditingCard };
             this.cards = this.cards.filter(c => c.id !== this.currentEditingCard.id);
             Storage.saveCards(this.cards);
             CloudStorage.deleteCard(this.currentEditingCard.id);
             this.renderCards();
             this.modalManager.close('editCard');
+
+            // Undo support
+            this.undoManager.push({
+                type: 'delete',
+                data: { cards: [deletedCard] },
+                description: `已删除「${deletedCard.chineseName}」`
+            });
+            this.undoManager.showUndoToast(`已删除「${deletedCard.chineseName}」`);
         } catch (error) {
             console.error('删除色卡失败:', error);
             alert('删除色卡失败，请重试');
@@ -1926,12 +2155,15 @@ class CardManager {
                 return (card.chineseName && card.chineseName.toLowerCase().includes(kw)) ||
                        (card.englishName && card.englishName.toLowerCase().includes(kw)) ||
                        (card.manufacturer && card.manufacturer.toLowerCase().includes(kw)) ||
-                       (card.material && card.material.toLowerCase().includes(kw));
+                       (card.material && card.material.toLowerCase().includes(kw)) ||
+                       (card.notes && card.notes.toLowerCase().includes(kw));
             });
         }
 
         // 排序
-        if (this.currentSort === 'name-asc') {
+        if (this.currentSort === 'default') {
+            filtered.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        } else if (this.currentSort === 'name-asc') {
             filtered.sort((a, b) => (a.chineseName || '').localeCompare(b.chineseName || '', 'zh'));
         } else if (this.currentSort === 'name-desc') {
             filtered.sort((a, b) => (b.chineseName || '').localeCompare(a.chineseName || '', 'zh'));
@@ -1942,6 +2174,88 @@ class CardManager {
         }
 
         this.renderCards(filtered);
+    }
+
+    // ===== 拖拽排序 =====
+    handleCardDrop(draggedId, targetId) {
+        const previousOrder = [...this.cards];
+        const draggedIdx = this.cards.findIndex(c => c.id === draggedId);
+        const targetIdx = this.cards.findIndex(c => c.id === targetId);
+        if (draggedIdx === -1 || targetIdx === -1) return;
+
+        const [draggedCard] = this.cards.splice(draggedIdx, 1);
+        this.cards.splice(targetIdx, 0, draggedCard);
+
+        // Update sortOrder
+        this.cards.forEach((c, i) => c.sortOrder = i);
+
+        Storage.saveCards(this.cards);
+        if (CloudStorage.isAvailable()) CloudStorage.saveCards(this.cards);
+        this.applyFilters();
+
+        this.undoManager.push({
+            type: 'reorder',
+            data: { previousOrder },
+            description: '已调整色卡顺序'
+        });
+        this.undoManager.showUndoToast('已调整色卡顺序');
+    }
+
+    // ===== 统计面板 =====
+    showStats() {
+        const grid = document.getElementById('statsGrid');
+        const total = this.cards.length;
+        const totalStock = this.cards.reduce((sum, c) => sum + (c.quantity || 0), 0);
+        const lowStockCount = this.cards.filter(c => (c.quantity || 0) <= 1).length;
+        const categories = {};
+        this.cards.forEach(c => {
+            const cat = c.category || 'other';
+            categories[cat] = (categories[cat] || 0) + 1;
+        });
+
+        const maxCatCount = Math.max(...Object.values(categories), 1);
+
+        let categoryBarsHtml = '';
+        const sortedCats = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+        sortedCats.forEach(([cat, count]) => {
+            const pct = Math.round((count / maxCatCount) * 100);
+            const color = categoryColors[cat] || '#888';
+            const name = categoryNames[cat] || cat;
+            categoryBarsHtml += `
+                <div class="stat-bar-item">
+                    <span class="stat-bar-name">${name}</span>
+                    <div class="stat-bar-track">
+                        <div class="stat-bar-fill" style="width:${pct}%;background:${color};"></div>
+                    </div>
+                    <span class="stat-bar-count">${count}</span>
+                </div>
+            `;
+        });
+
+        grid.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${total}</div>
+                <div class="stat-label">色卡总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${totalStock}</div>
+                <div class="stat-label">库存总量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:${lowStockCount > 0 ? 'var(--accent-danger)' : 'var(--accent-success)'}">${lowStockCount}</div>
+                <div class="stat-label">低库存预警</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${Object.keys(categories).length}</div>
+                <div class="stat-label">颜色分类</div>
+            </div>
+            <div class="stat-card full-width">
+                <div class="stat-label" style="margin-bottom:4px;">分类分布</div>
+                <div class="stat-bar-list">${categoryBarsHtml || '<div style="color:var(--text-muted);font-size:0.85rem;">暂无数据</div>'}</div>
+            </div>
+        `;
+
+        document.getElementById('statsModal').style.display = 'block';
     }
 
     init() {
