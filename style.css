@@ -305,6 +305,43 @@ header p {
     color: white;
 }
 
+.sort-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.sort-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sort-select {
+    padding: 9px 12px 9px 30px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    background: var(--bg-glass);
+    font-size: 0.83rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    min-width: 130px;
+}
+
+.sort-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: var(--bg-glass-hover);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
 .btn {
     padding: 8px 18px;
     border: none;
@@ -1872,6 +1909,11 @@ footer {
         max-width: 100%;
         order: 10;
         flex-basis: 100%;
+        margin-top: 8px;
+    }
+
+    .sort-box {
+        order: 11;
         margin-top: 8px;
     }
     

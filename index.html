@@ -52,6 +52,16 @@
                 <button class="search-clear" id="searchClear" type="button" style="display:none;">×</button>
             </div>
             <div class="nav-divider"></div>
+            <div class="sort-box">
+                <svg class="sort-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+                <select id="sortSelect" class="sort-select">
+                    <option value="default">默认排序</option>
+                    <option value="name-asc">名称 A → Z</option>
+                    <option value="name-desc">名称 Z → A</option>
+                    <option value="stock-asc">库存 低 → 高</option>
+                    <option value="stock-desc">库存 高 → 低</option>
+                </select>
+            </div>
             <button class="add-btn" id="addCardBtn" type="button">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 添加色卡

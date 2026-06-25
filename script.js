@@ -650,6 +650,7 @@ class CardManager {
         this.cloudSyncCompleted = false; // 云端同步是否已完成
         this.currentCategory = 'all';    // 当前分类筛选
         this.currentSearch = '';         // 当前搜索词
+        this.currentSort = 'default';    // 当前排序方式
         this.bindEvents();
     }
 
@@ -694,6 +695,12 @@ class CardManager {
             document.getElementById('searchClear').style.display = 'none';
             this.applyFilters();
             document.getElementById('searchInput').focus();
+        });
+
+        // Sort select
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            this.currentSort = e.target.value;
+            this.applyFilters();
         });
 
         // Admin tab switching
@@ -1487,6 +1494,17 @@ class CardManager {
                        (card.manufacturer && card.manufacturer.toLowerCase().includes(kw)) ||
                        (card.material && card.material.toLowerCase().includes(kw));
             });
+        }
+
+        // 排序
+        if (this.currentSort === 'name-asc') {
+            filtered.sort((a, b) => (a.chineseName || '').localeCompare(b.chineseName || '', 'zh'));
+        } else if (this.currentSort === 'name-desc') {
+            filtered.sort((a, b) => (b.chineseName || '').localeCompare(a.chineseName || '', 'zh'));
+        } else if (this.currentSort === 'stock-asc') {
+            filtered.sort((a, b) => (a.quantity || 0) - (b.quantity || 0));
+        } else if (this.currentSort === 'stock-desc') {
+            filtered.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
         }
 
         this.renderCards(filtered);
