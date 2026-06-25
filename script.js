@@ -1612,13 +1612,14 @@ class CardManager {
     }
 
     // ---- 关键词库 ----
-    _materialKeywords = ['PLA', 'PETG', 'ABS', 'TPU', 'Nylon', 'PC', 'PVA', 'HIPS', 'ASA', 'PP', 'PE', 'PET', 'PLA+', 'PETG+', 'TPE', 'PC-ABS'];
-    _manufacturerKeywords = ['Jucoole', 'eSUN', 'HATCHBOX', 'Overture', 'SUNLU', 'Inland', 'Polymaker', 'Prusament', 'Bambu', 'Creality', 'Anycubic', 'Elegoo'];
+    _materialKeywords = ['PLA M', 'PLA', 'PETG', 'ABS', 'TPU', 'Nylon', 'PC', 'PVA', 'HIPS', 'ASA', 'PP', 'PE', 'PET', 'PLA+', 'PETG+', 'TPE', 'PC-ABS'];
+    _manufacturerKeywords = ['Jucoole', 'kexcelled', 'eSUN', 'HATCHBOX', 'Overture', 'SUNLU', 'Inland', 'Polymaker', 'Prusament', 'Bambu', 'Creality', 'Anycubic', 'Elegoo'];
     _colorMap = {
         'red': 'red', '红色': 'red', '赤色': 'red', '大红': 'red', '中国红': 'red',
         'orange': 'orange', '橙色': 'orange', '橘色': 'orange',
         'yellow': 'yellow', '黄色': 'yellow', '金色': 'yellow', 'gold': 'yellow',
         'green': 'green', '绿色': 'green', '草绿': 'green', '深绿': 'green', '浅绿': 'green',
+        'milk green': 'green', '奶绿': 'green',
         'cyan': 'cyan', '青色': 'cyan', '湖蓝': 'cyan', '天蓝': 'cyan',
         'blue': 'blue', '蓝色': 'blue', '深蓝': 'blue', '宝蓝': 'blue',
         'purple': 'purple', '紫色': 'purple', '紫罗兰': 'purple', 'violet': 'purple',
@@ -1628,7 +1629,7 @@ class CardManager {
     };
     _colorENtoCN = {
         'red': '红色', 'orange': '橙色', 'yellow': '黄色', 'green': '绿色',
-        'cyan': '青色', 'blue': '蓝色', 'purple': '紫色',
+        'milk green': '奶绿', 'cyan': '青色', 'blue': '蓝色', 'purple': '紫色',
         'black': '黑色', 'white': '白色', 'gray': '灰色'
     };
 
@@ -1760,7 +1761,9 @@ class CardManager {
     _detectMaterial(text) {
         if (!text) return null;
         const upper = text.toUpperCase();
-        for (const mat of this._materialKeywords) {
+        // 按长度降序匹配，优先 "PLA M" 而非 "PLA"
+        const sorted = [...this._materialKeywords].sort((a, b) => b.length - a.length);
+        for (const mat of sorted) {
             if (upper.includes(mat.toUpperCase())) return mat;
         }
         // 正则兜底：匹配 "XX料" 或含 "料" 的短语
@@ -1772,7 +1775,9 @@ class CardManager {
     _detectColor(text) {
         if (!text) return '';
         const lower = text.toLowerCase();
-        for (const [keyword, category] of Object.entries(this._colorMap)) {
+        // 按关键词长度降序匹配，优先匹配 "milk green" 而非 "green"
+        const sorted = Object.entries(this._colorMap).sort((a, b) => b[0].length - a[0].length);
+        for (const [keyword, category] of sorted) {
             if (lower.includes(keyword.toLowerCase())) return category;
         }
         return '';
@@ -1793,8 +1798,9 @@ class CardManager {
     _findColorEN(text) {
         if (!text) return '';
         const lower = text.toLowerCase();
-        // 直接匹配英文颜色名
-        for (const enName of Object.keys(this._colorENtoCN)) {
+        // 按长度降序匹配，优先 "milk green" 而非 "green"
+        const sorted = Object.keys(this._colorENtoCN).sort((a, b) => b.length - a.length);
+        for (const enName of sorted) {
             if (lower === enName || lower.startsWith(enName + ' ') || lower.endsWith(' ' + enName)) {
                 return enName;
             }
