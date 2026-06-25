@@ -226,22 +226,87 @@ header p {
     50% { opacity: 0.5; transform: scale(1.1); }
 }
 
-.category-nav {
+/* ===== 工具栏容器 ===== */
+.toolbar-wrapper {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: linear-gradient(180deg, var(--bg-primary) 80%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding-bottom: 4px;
+}
+
+.nav-categories,
+.nav-filters,
+.nav-actions {
     position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 30px;
+}
+
+/* ===== 第1层：分类导航 ===== */
+.nav-categories {
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding-top: 20px;
+    padding-bottom: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.nav-categories::-webkit-scrollbar {
+    display: none;
+}
+
+/* ===== 第2层：搜索 + 排序 ===== */
+.nav-filters {
     display: flex;
     justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 16px 20px;
-    z-index: 1;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 12px;
 }
 
-.nav-divider {
+.nav-filters .search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    max-width: 480px;
+}
+
+.nav-filters .sort-box {
+    flex-shrink: 0;
+}
+
+/* ===== 第3层：操作按钮 ===== */
+.nav-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 16px;
+}
+
+.actions-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.actions-divider {
     width: 1px;
     height: 28px;
     background: var(--border-default);
-    margin: 0 8px;
+    margin: 0 14px;
     flex-shrink: 0;
 }
 
@@ -571,49 +636,10 @@ header p {
     transform: translateY(0);
 }
 
+/* ---- 工具按钮（统一风格） ---- */
+.batch-mode-btn,
+.log-btn,
 .admin-btn {
-    position: relative;
-    padding: 10px 22px;
-    border: 1.5px solid rgba(245, 158, 11, 0.3);
-    border-radius: var(--radius-full);
-    color: #f59e0b;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition-normal);
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    letter-spacing: 0.02em;
-    font-family: var(--font-sans);
-    background: rgba(245, 158, 11, 0.08);
-    backdrop-filter: blur(10px);
-    overflow: hidden;
-}
-
-.admin-btn svg {
-    position: relative;
-    z-index: 1;
-    color: #f59e0b;
-}
-
-.admin-btn:hover {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-    border-color: transparent;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
-}
-
-.admin-btn:hover svg {
-    color: white;
-}
-
-.admin-btn:active {
-    transform: translateY(0);
-}
-
-.batch-mode-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -626,19 +652,27 @@ header p {
     font-weight: 500;
     cursor: pointer;
     transition: all var(--transition-normal);
+    font-family: var(--font-sans);
 }
 
-.batch-mode-btn svg {
+.batch-mode-btn svg,
+.log-btn svg,
+.admin-btn svg {
     transition: color var(--transition-fast);
 }
 
-.batch-mode-btn:hover {
+.batch-mode-btn:hover,
+.log-btn:hover,
+.admin-btn:hover {
     background: var(--bg-glass-hover);
     color: var(--accent-primary);
     border-color: var(--accent-primary);
+    transform: translateY(-1px);
 }
 
-.batch-mode-btn:hover svg {
+.batch-mode-btn:hover svg,
+.log-btn:hover svg,
+.admin-btn:hover svg {
     color: var(--accent-primary);
 }
 
@@ -652,34 +686,7 @@ header p {
     color: var(--accent-primary);
 }
 
-.log-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border: 1.5px solid var(--border-default);
-    border-radius: var(--radius-full);
-    background: var(--bg-glass);
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-normal);
-}
-
-.log-btn svg {
-    transition: color var(--transition-fast);
-}
-
-.log-btn:hover {
-    background: var(--bg-glass-hover);
-    color: var(--accent-primary);
-    border-color: var(--accent-primary);
-}
-
-.log-btn:hover svg {
-    color: var(--accent-primary);
-}
+/* ===== 批量模式 ===== */
 
 .cards-section {
     position: relative;
@@ -1521,9 +1528,25 @@ footer {
         font-size: 2rem;
     }
     
+    /* ---- 工具栏适配 ---- */
+    .nav-categories,
+    .nav-filters,
+    .nav-actions {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    
+    .nav-categories {
+        justify-content: flex-start;
+        padding-top: 16px;
+        padding-bottom: 10px;
+        gap: 6px;
+    }
+    
     .category-btn {
         padding: 8px 14px 8px 32px;
         font-size: 0.8rem;
+        flex-shrink: 0;
     }
     
     .category-btn::before {
@@ -1532,54 +1555,47 @@ footer {
         height: 12px;
     }
     
-    .admin-btn,
-    .batch-mode-btn,
-    .log-btn {
-        padding: 8px 14px;
-        font-size: 0.8rem;
+    .nav-filters {
+        flex-direction: column;
+        gap: 8px;
+        padding-bottom: 10px;
     }
-
+    
+    .nav-filters .search-box {
+        max-width: 100%;
+        width: 100%;
+    }
+    
+    .nav-filters .sort-box {
+        width: 100%;
+    }
+    
+    .nav-filters .sort-select {
+        width: 100%;
+    }
+    
+    .nav-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-bottom: 12px;
+    }
+    
+    .actions-group {
+        gap: 6px;
+    }
+    
+    .actions-divider {
+        display: none;
+    }
+    
     .add-btn,
     .scan-btn,
     .template-btn,
+    .batch-mode-btn,
+    .log-btn,
     .admin-btn {
         padding: 8px 14px;
         font-size: 0.8rem;
-    }
-
-    .add-btn::before,
-    .template-btn::before,
-    .admin-btn::before,
-    .scan-btn::before {
-        left: 10px;
-        width: 18px;
-        height: 18px;
-    }
-    
-    .nav-divider {
-        height: 24px;
-        margin: 0 4px;
-    }
-
-    .search-box {
-        max-width: 100%;
-        order: 10;
-        flex-basis: 100%;
-        margin-top: 8px;
-    }
-
-    .sort-box {
-        order: 11;
-        margin-top: 8px;
-    }
-    
-    .size-switcher {
-        padding: 3px;
-    }
-    
-    .size-btn {
-        width: 28px;
-        height: 28px;
     }
     
     .modal-content {
@@ -1605,14 +1621,18 @@ footer {
 }
 
 @media (max-width: 480px) {
-    .category-nav {
-        gap: 8px;
-        padding: 12px;
+    .nav-categories {
+        gap: 4px;
+        padding-top: 12px;
+        padding-bottom: 8px;
     }
     
-    .btn {
-        padding: 8px 14px;
-        font-size: 0.75rem;
+    .nav-actions {
+        gap: 6px;
+    }
+    
+    .actions-group {
+        gap: 4px;
     }
     
     .card-content {

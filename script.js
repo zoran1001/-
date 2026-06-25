@@ -105,7 +105,8 @@ const CloudStorage = {
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
-                    quantity: card.quantity
+                    quantity: card.quantity,
+                    color: card.color
                 })));
             if (error) throw error;
             return true;
@@ -129,7 +130,8 @@ const CloudStorage = {
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
-                    quantity: card.quantity
+                    quantity: card.quantity,
+                    color: card.color
                 }));
             if (error) throw error;
             return true;
@@ -152,7 +154,8 @@ const CloudStorage = {
                     image: card.image,
                     chineseName: card.chineseName,
                     config: card.config,
-                    quantity: card.quantity
+                    quantity: card.quantity,
+                    color: card.color
                 }))
                 .eq('id', card.id);
             if (error) throw error;
@@ -1480,7 +1483,7 @@ class CardManager {
                 if (category) card.category = category;
 
                 Storage.saveCards(this.cards);
-                CloudStorage.updateCard(keysToSnake(card));
+                CloudStorage.updateCard(card);
                 
                 // 记录扫描识别库存变动
                 this.stockLogManager.add(card.id, card.chineseName, oldQuantity, card.quantity, 'scan');
