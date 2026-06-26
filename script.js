@@ -1640,18 +1640,23 @@ class CardManager {
         });
     }
 
-    handleImageUpload(e, previewId) {
+    async handleImageUpload(e, previewId) {
         const file = e.target.files[0];
         const preview = document.getElementById(previewId);
         
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
-                preview.innerHTML = `<img src="${event.target.result}" alt="预览">`;
+            reader.onload = async (event) => {
+                // 压缩图片到 800px
+                const compressed = await this.compressImage(event.target.result, 800, 0.85);
+                preview.innerHTML = `<img src="${compressed}" alt="预览">`;
+                // 将压缩后的图片存储到 input 的 dataset 中，供后续保存使用
+                e.target.dataset.compressedImage = compressed;
             };
             reader.readAsDataURL(file);
         } else {
             preview.innerHTML = '';
+            delete e.target.dataset.compressedImage;
         }
     }
 
@@ -3137,6 +3142,13 @@ class CardManager {
             const notes = document.getElementById('notes').value.trim();
             const config = Utils.getConfigFromContainer(this.modalManager.configContainers.add);
 
+            const imageInput = document.getElementById('imageUpload');
+            const uploadedImage = imageInput && imageInput.dataset.compressedImage 
+                ? imageInput.dataset.compressedImage 
+                : (this.modalManager.previews.image.innerHTML 
+                    ? this.modalManager.previews.image.querySelector('img').src 
+                    : '');
+
             const newCard = {
                 id: Date.now(),
                 category,
@@ -3144,9 +3156,7 @@ class CardManager {
                 englishName,
                 material,
                 variant,
-                image: this.modalManager.previews.image.innerHTML 
-                    ? this.modalManager.previews.image.querySelector('img').src 
-                    : '',
+                image: uploadedImage,
                 chineseName,
                 config,
                 quantity,
@@ -3196,8 +3206,12 @@ class CardManager {
                 notes: oldCard.notes || ''
             };
 
+            const editImageInput = document.getElementById('editImageUpload');
             let newImage = this.currentEditingCard.image;
-            if (this.modalManager.previews.editImage.innerHTML) {
+            if (editImageInput && editImageInput.dataset.compressedImage) {
+                // 使用压缩后的图片
+                newImage = editImageInput.dataset.compressedImage;
+            } else if (this.modalManager.previews.editImage.innerHTML) {
                 newImage = this.modalManager.previews.editImage.querySelector('img').src;
             }
 
