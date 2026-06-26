@@ -1461,8 +1461,33 @@ class CardManager {
             });
         });
 
-        // Search input with debounce
-        const debouncedSearch = Utils.debounce(() => this.applyFilters(), 300);
+        // Search input with debounce and history
+        const SEARCH_HISTORY_KEY = 'color_cards_search_history';
+        const maxHistory = 10;
+        
+        // Load search history
+        let searchHistory = [];
+        try {
+            const saved = localStorage.getItem(SEARCH_HISTORY_KEY);
+            if (saved) searchHistory = JSON.parse(saved);
+        } catch (e) {}
+
+        const saveSearchHistory = (query) => {
+            if (!query || query.length < 2) return;
+            // Remove duplicate
+            searchHistory = searchHistory.filter(h => h !== query);
+            // Add to front
+            searchHistory.unshift(query);
+            // Keep only last 10
+            if (searchHistory.length > maxHistory) searchHistory = searchHistory.slice(0, maxHistory);
+            localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+        };
+
+        const debouncedSearch = Utils.debounce(() => {
+            saveSearchHistory(this.currentSearch);
+            this.applyFilters();
+        }, 300);
+        
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.currentSearch = e.target.value.trim();
             document.getElementById('searchClear').style.display = this.currentSearch ? 'flex' : 'none';
@@ -1474,6 +1499,21 @@ class CardManager {
             document.getElementById('searchClear').style.display = 'none';
             this.applyFilters();
             document.getElementById('searchInput').focus();
+        });
+
+        // Search history dropdown on focus
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('focus', () => {
+            if (searchHistory.length > 0 && !this.currentSearch) {
+                this.showSearchHistoryDropdown(searchHistory);
+            }
+        });
+        
+        // Hide history dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#searchInput') && !e.target.closest('.search-history-dropdown')) {
+                this.hideSearchHistoryDropdown();
+            }
         });
 
         // Sort select
@@ -1866,16 +1906,81 @@ class CardManager {
             cards = cards.filter(c => c.category === this.currentCategory);
         }
         if (this.currentSearch) {
-            const kw = this.currentSearch.toLowerCase();
+            const kw = this.currentSearch.toLowerCase().trim();
             cards = cards.filter(c => {
-                return (c.chineseName || '').toLowerCase().includes(kw)
+                // 原始字段匹配
+                const matchOriginal = (c.chineseName || '').toLowerCase().includes(kw)
                     || (c.englishName || '').toLowerCase().includes(kw)
                     || (c.manufacturer || '').toLowerCase().includes(kw)
                     || (c.material || '').toLowerCase().includes(kw)
                     || (c.notes || '').toLowerCase().includes(kw);
+                
+                if (matchOriginal) return true;
+                
+                // 拼音首字母匹配（中文名）
+                if (c.chineseName) {
+                    const pinyinInitials = this._getPinyinInitials(c.chineseName);
+                    if (pinyinInitials.toLowerCase().includes(kw)) return true;
+                }
+                
+                // 模糊匹配（编辑距离 <= 2）
+                const fuzzyMatch = (field, threshold = 2) => {
+                    if (!field || field.length < 2) return false;
+                    return this._levenshteinDistance(field.toLowerCase(), kw) <= threshold;
+                };
+                
+                if (fuzzyMatch(c.chineseName) || fuzzyMatch(c.englishName) || fuzzyMatch(c.manufacturer)) {
+                    return true;
+                }
+                
+                return false;
             });
         }
         return cards;
+    }
+
+    // 获取中文拼音首字母
+    _getPinyinInitials(chinese) {
+        const pinyinMap = {
+            '赤': 'C', '橙': 'C', '黄': 'H', '绿': 'L', '青': 'Q', '蓝': 'L', '紫': 'Z',
+            '黑': 'H', '白': 'B', '灰': 'H', '粉': 'F', '棕': 'Z', '红': 'H'
+        };
+        
+        let initials = '';
+        for (const char of chinese) {
+            // 如果是中文字符，尝试转换
+            if (/[\u4e00-\u9fa5]/.test(char)) {
+                initials += pinyinMap[char] || char;
+            } else {
+                initials += char;
+            }
+        }
+        return initials;
+    }
+
+    // 计算 Levenshtein 编辑距离
+    _levenshteinDistance(str1, str2) {
+        const m = str1.length;
+        const n = str2.length;
+        const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+        
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (str1[i - 1] === str2[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1];
+                } else {
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,      // 删除
+                        dp[i][j - 1] + 1,      // 插入
+                        dp[i - 1][j - 1] + 1   // 替换
+                    );
+                }
+            }
+        }
+        return dp[m][n];
     }
 
     async batchDelete() {
@@ -3489,6 +3594,48 @@ class CardManager {
             console.error('编辑色卡失败:', error);
             alert('编辑色卡失败，请重试');
         }
+    }
+
+    showSearchHistoryDropdown(history) {
+        // Remove existing dropdown if any
+        this.hideSearchHistoryDropdown();
+        
+        const searchInput = document.getElementById('searchInput');
+        const dropdown = document.createElement('div');
+        dropdown.className = 'search-history-dropdown';
+        dropdown.innerHTML = history.map(query => `
+            <div class="search-history-item" data-query="${query}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>${query}</span>
+            </div>
+        `).join('');
+        
+        // Position below search input
+        const rect = searchInput.getBoundingClientRect();
+        dropdown.style.position = 'fixed';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.top = (rect.bottom + 4) + 'px';
+        dropdown.style.width = rect.width + 'px';
+        
+        document.body.appendChild(dropdown);
+        
+        // Handle clicks on history items
+        dropdown.querySelectorAll('.search-history-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const query = item.getAttribute('data-query');
+                searchInput.value = query;
+                this.currentSearch = query;
+                document.getElementById('searchClear').style.display = 'flex';
+                this.applyFilters();
+                this.hideSearchHistoryDropdown();
+                searchInput.focus();
+            });
+        });
+    }
+
+    hideSearchHistoryDropdown() {
+        const existing = document.querySelector('.search-history-dropdown');
+        if (existing) existing.remove();
     }
 
     async handleDeleteCard() {

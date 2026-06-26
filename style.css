@@ -2537,6 +2537,43 @@ footer {
     }
 }
 
+/* ===== 搜索历史下拉框 ===== */
+.search-history-dropdown {
+    background: white;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-history-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-history-item:hover {
+    background: var(--bg-secondary);
+}
+
+.search-history-item svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.search-history-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ===== Toast 通知 ===== */
 .toast-container {
     position: fixed;
