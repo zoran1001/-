@@ -1016,28 +1016,42 @@ const OCRSpace = {
         formData.append('apikey', this.apiKey);
         formData.append('OCREngine', '2'); // 引擎2精度更高
         
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        });
+        // 添加超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
         
-        const data = await response.json();
-        
-        if (data.IsErroredOnProcessing) {
-            throw new Error(`OCR 失败：${data.ErrorMessage || '未知错误'}`);
-        }
-        
-        if (data.ParsedResults && data.ParsedResults.length > 0) {
-            const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
-            console.log('[OCRSpace] 识别成功');
-            return {
-                text: text,
-                confidence: 90,
-                wordsCount: text.split(/\s+/).length
-            };
-        } else {
-            throw new Error('OCR 未识别到文字');
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString(),
+                signal: controller.signal
+            });
+            
+            const data = await response.json();
+            
+            if (data.IsErroredOnProcessing) {
+                throw new Error(`OCR 失败：${data.ErrorMessage || '未知错误'}`);
+            }
+            
+            if (data.ParsedResults && data.ParsedResults.length > 0) {
+                const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
+                console.log('[OCRSpace] 识别成功');
+                return {
+                    text: text,
+                    confidence: 90,
+                    wordsCount: text.split(/\s+/).length
+                };
+            } else {
+                throw new Error('OCR 未识别到文字');
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('OCR 请求超时，请检查网络连接');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 };
@@ -1816,18 +1830,45 @@ class CardManager {
         const reader = new FileReader();
         reader.onload = (event) => {
             const imgData = event.target.result;
-            this.scanImageData = imgData;
+            // 压缩图片后再存储
+            this.compressImage(imgData, 1200, 0.8).then(compressed => {
+                this.scanImageData = compressed;
 
-            // 显示预览
-            const previewImg = document.getElementById('scanPreviewImg');
-            previewImg.src = imgData;
-            previewImg.style.display = 'block';
-            document.getElementById('scanUploadContent').style.display = 'none';
+                // 显示预览
+                const previewImg = document.getElementById('scanPreviewImg');
+                previewImg.src = compressed;
+                previewImg.style.display = 'block';
+                document.getElementById('scanUploadContent').style.display = 'none';
 
-            // 启用识别按钮
-            document.getElementById('scanStartBtn').disabled = false;
+                // 启用识别按钮
+                document.getElementById('scanStartBtn').disabled = false;
+            });
         };
         reader.readAsDataURL(file);
+    }
+
+    // 压缩图片：最大边长 maxSize，JPEG 质量 quality
+    compressImage(dataUrl, maxSize = 1200, quality = 0.8) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > height && width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                } else if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = dataUrl;
+        });
     }
 
     async startOCR() {
