@@ -119,6 +119,9 @@ body::before {
 
 /* ---- 整体应用布局 ---- */
 .app-layout {
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
     display: flex;
     height: 100vh;
     width: 100vw;
@@ -131,10 +134,19 @@ body::before {
    =========================== */
 .sidebar {
     width: 200px;
+    -webkit-flex-shrink: 0;
+    -ms-flex-negative: 0;
     flex-shrink: 0;
     background: #ffffff;
     border-right: 1px solid var(--border-default);
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
     display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -webkit-flex-direction: column;
+    -ms-flex-direction: column;
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
@@ -341,8 +353,18 @@ body::before {
    主内容区
    =========================== */
 .main-area {
+    -webkit-box-flex: 1;
+    -webkit-flex: 1;
+    -ms-flex: 1;
     flex: 1;
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
     display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -webkit-flex-direction: column;
+    -ms-flex-direction: column;
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
@@ -354,9 +376,20 @@ body::before {
    =========================== */
 .topbar {
     height: 56px;
+    -webkit-flex-shrink: 0;
+    -ms-flex-negative: 0;
     flex-shrink: 0;
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
     display: flex;
+    -webkit-box-align: center;
+    -webkit-align-items: center;
+    -ms-flex-align: center;
     align-items: center;
+    -webkit-box-pack: justify;
+    -webkit-justify-content: space-between;
+    -ms-flex-pack: justify;
     justify-content: space-between;
     padding: 0 20px;
     background: var(--bg-primary);
@@ -536,9 +569,13 @@ body::before {
    色卡网格
    =========================== */
 .cards-container {
+    display: -ms-grid;
     display: grid;
+    -ms-grid-columns: repeat(auto-fill, minmax(240px, 1fr));
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 14px;
+    -webkit-transition: all var(--transition-normal);
+    -o-transition: all var(--transition-normal);
     transition: all var(--transition-normal);
 }
 
@@ -1382,6 +1419,28 @@ footer {
 }
 
 /* ===== 响应式 ===== */
+
+/* 平板横屏 (1024px) */
+@media (max-width: 1024px) {
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+    }
+}
+
+/* 平板竖屏 (900px) */
+@media (max-width: 900px) {
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .search-box {
+        max-width: 240px;
+    }
+}
+
+/* 平板/大手机 (768px) */
 @media (max-width: 768px) {
     .sidebar {
         width: 52px;
@@ -1498,6 +1557,27 @@ footer {
     }
 }
 
+/* 大手机 (600px) */
+@media (max-width: 600px) {
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 10px;
+    }
+
+    .card-title {
+        font-size: 0.88rem;
+    }
+
+    .card-subtitle {
+        font-size: 0.75rem;
+    }
+
+    .search-box {
+        max-width: 160px;
+    }
+}
+
+/* 小手机 (480px) */
 @media (max-width: 480px) {
     .cards-container {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -1567,6 +1647,77 @@ footer {
     .card-action-btn {
         padding: 5px 10px;
         font-size: 0.75rem;
+    }
+}
+
+/* 超小屏幕 (360px) */
+@media (max-width: 360px) {
+    .cards-container {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .topbar {
+        padding: 0 6px;
+        gap: 4px;
+    }
+
+    .search-box {
+        max-width: 120px;
+    }
+
+    .search-input {
+        font-size: 0.75rem;
+        padding: 6px 24px 6px 24px;
+    }
+
+    .sort-select {
+        max-width: 80px;
+        font-size: 0.72rem;
+    }
+
+    .topbar-icon-btn {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 5px;
+    }
+
+    .topbar-icon-btn svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .card-title {
+        font-size: 0.8rem;
+    }
+
+    .card-subtitle {
+        font-size: 0.7rem;
+    }
+
+    .card-info label {
+        font-size: 0.7rem;
+    }
+
+    .card-info span {
+        font-size: 0.75rem;
+    }
+
+    .card-action-btn {
+        padding: 4px 8px;
+        font-size: 0.72rem;
+    }
+
+    .fab-add {
+        width: 48px;
+        height: 48px;
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+        right: calc(20px + env(safe-area-inset-right, 0px));
+    }
+
+    .fab-add svg {
+        width: 20px;
+        height: 20px;
     }
 }
 
