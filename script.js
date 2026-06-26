@@ -1659,7 +1659,7 @@ class CardManager {
         return cards;
     }
 
-    batchDelete() {
+    async batchDelete() {
         if (this.selectedCards.size === 0) return;
         const count = this.selectedCards.size;
         if (!confirm(`确定要删除选中的 ${count} 张色卡吗？此操作不可撤销。`)) return;
@@ -1669,7 +1669,7 @@ class CardManager {
         Storage.saveCards(this.cards);
         localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
         if (CloudStorage.isAvailable()) {
-            CloudStorage.saveCards(this.cards);
+            await CloudStorage.saveCards(this.cards);
         }
         this.selectedCards.clear();
         this.applyFilters();
@@ -2526,7 +2526,7 @@ class CardManager {
         return '#888888';
     }
 
-    confirmScanResult() {
+    async confirmScanResult() {
         const getVal = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
         const chineseName = getVal('scanChineseName');
         const englishName = getVal('scanEnglishName');
@@ -2556,7 +2556,7 @@ class CardManager {
                 if (category) card.category = category;
 
                 Storage.saveCards(this.cards);
-                CloudStorage.updateCard(card);
+                await CloudStorage.updateCard(card);
                 
                 // 自动添加新的厂商和材料到列表
                 if (manufacturer) this.materialManager.addManufacturer(manufacturer);
@@ -2587,7 +2587,7 @@ class CardManager {
 
             this.cards.push(newCard);
             Storage.saveCards(this.cards);
-            CloudStorage.addCard(newCard);
+            await CloudStorage.addCard(newCard);
 
             // 自动添加新的厂商和材料到列表
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
@@ -2867,7 +2867,7 @@ class CardManager {
         this.modalManager.open('editTemplate');
     }
 
-    handleAddCard(e) {
+    async handleAddCard(e) {
         e.preventDefault();
 
         try {
@@ -2912,7 +2912,7 @@ class CardManager {
                 this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
             }
             Storage.saveCards(this.cards);
-            CloudStorage.addCard(newCard);
+            await CloudStorage.addCard(newCard);
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
@@ -2921,7 +2921,7 @@ class CardManager {
         }
     }
 
-    handleEditCard(e) {
+    async handleEditCard(e) {
         e.preventDefault();
 
         if (!this.currentEditingCard) return;
@@ -2988,7 +2988,7 @@ class CardManager {
             }
 
             Storage.saveCards(this.cards);
-            CloudStorage.updateCard(this.cards[cardIndex]);
+            await CloudStorage.updateCard(this.cards[cardIndex]);
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
@@ -2997,7 +2997,7 @@ class CardManager {
         }
     }
 
-    handleDeleteCard() {
+    async handleDeleteCard() {
         if (!this.currentEditingCard) return;
 
         if (!confirm(`确定要删除色卡「${this.currentEditingCard.chineseName}」吗？`)) {
@@ -3009,7 +3009,7 @@ class CardManager {
             this.cards = this.cards.filter(c => c.id !== this.currentEditingCard.id);
             Storage.saveCards(this.cards);
             localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
-            CloudStorage.deleteCard(this.currentEditingCard.id);
+            await CloudStorage.deleteCard(this.currentEditingCard.id);
             this.renderCards();
             this.modalManager.close('editCard');
 
