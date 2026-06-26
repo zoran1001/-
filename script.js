@@ -3375,7 +3375,117 @@ class CardManager {
             preview.innerHTML = '';
         }
 
+        // 颜色可视化分析
+        this.updateColorVisualization(color);
+
         this.modalManager.open('detailCard');
+    }
+
+    updateColorVisualization(color) {
+        const solidColor = color.includes('gradient') ? '#ff6b6b' : color;
+        
+        // 大预览
+        const largePreview = document.getElementById('colorPreviewLarge');
+        largePreview.style.background = solidColor;
+        
+        // HEX 值
+        document.getElementById('colorHexValue').textContent = solidColor.toUpperCase();
+        
+        // RGB 值
+        const rgb = this.hexToRgb(solidColor);
+        document.getElementById('colorRgbValue').textContent = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+        
+        // 对比度检查（与白色背景）
+        const contrastWhite = this.getContrastRatio(solidColor, '#ffffff');
+        const contrastBlack = this.getContrastRatio(solidColor, '#000000');
+        const bestContrast = contrastWhite > contrastBlack ? contrastWhite : contrastBlack;
+        const bgColor = contrastWhite > contrastBlack ? '#ffffff' : '#000000';
+        
+        document.getElementById('contrastRatio').textContent = bestContrast.toFixed(2) + ':1';
+        
+        // 可读性评分
+        let readability = '较差';
+        let readColor = '#ef4444';
+        if (bestContrast >= 7) {
+            readability = '优秀 (AAA)';
+            readColor = '#10b981';
+        } else if (bestContrast >= 4.5) {
+            readability = '良好 (AA)';
+            readColor = '#f59e0b';
+        } else if (bestContrast >= 3) {
+            readability = '一般';
+            readColor = '#f97316';
+        }
+        
+        const readabilityEl = document.getElementById('readabilityScore');
+        readabilityEl.textContent = readability;
+        readabilityEl.style.color = readColor;
+        
+        // 相似色推荐
+        this.renderSimilarColors(solidColor);
+    }
+
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 0, g: 0, b: 0 };
+    }
+
+    getLuminance(r, g, b) {
+        const [rs, gs, bs] = [r, g, b].map(c => {
+            c = c / 255;
+            return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+    }
+
+    getContrastRatio(color1, color2) {
+        const rgb1 = this.hexToRgb(color1);
+        const rgb2 = this.hexToRgb(color2);
+        const lum1 = this.getLuminance(rgb1.r, rgb1.g, rgb1.b);
+        const lum2 = this.getLuminance(rgb2.r, rgb2.g, rgb2.b);
+        const brightest = Math.max(lum1, lum2);
+        const darkest = Math.min(lum1, lum2);
+        return (brightest + 0.05) / (darkest + 0.05);
+    }
+
+    renderSimilarColors(baseColor) {
+        const container = document.getElementById('similarColorsList');
+        const baseRgb = this.hexToRgb(baseColor);
+        
+        // 从当前色卡中找相似色（欧几里得距离）
+        const similarCards = this.cards
+            .filter(c => c.id !== this.currentDetailCard.id)
+            .map(card => {
+                const cardColor = card.color || Utils.getColorForCategory(card.category);
+                const solidColor = cardColor.includes('gradient') ? '#ff6b6b' : cardColor;
+                const rgb = this.hexToRgb(solidColor);
+                const distance = Math.sqrt(
+                    Math.pow(rgb.r - baseRgb.r, 2) +
+                    Math.pow(rgb.g - baseRgb.g, 2) +
+                    Math.pow(rgb.b - baseRgb.b, 2)
+                );
+                return { card, color: solidColor, distance };
+            })
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 8);
+        
+        if (similarCards.length === 0) {
+            container.innerHTML = '<div class="empty-similar">暂无相似色卡</div>';
+            return;
+        }
+        
+        container.innerHTML = similarCards.map(item => `
+            <div class="similar-color-item" 
+                 style="background: ${item.color}" 
+                 data-name="${item.card.chineseName}"
+                 title="${item.card.chineseName} (${item.card.englishName})"
+                 onclick="window.cardManager.showDetail(${item.card.id})">
+            </div>
+        `).join('');
     }
 
     showEdit(cardId) {

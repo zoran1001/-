@@ -434,6 +434,36 @@
                     <span id="detailConfig"></span>
                 </div>
             </div>
+            
+            <!-- 颜色可视化区域 -->
+            <div class="color-visualization">
+                <h3>颜色分析</h3>
+                <div class="color-preview-large" id="colorPreviewLarge"></div>
+                <div class="color-info-grid">
+                    <div class="color-info-item">
+                        <span class="info-label">HEX:</span>
+                        <span class="info-value" id="colorHexValue">#000000</span>
+                    </div>
+                    <div class="color-info-item">
+                        <span class="info-label">RGB:</span>
+                        <span class="info-value" id="colorRgbValue">rgb(0, 0, 0)</span>
+                    </div>
+                    <div class="color-info-item">
+                        <span class="info-label">对比度:</span>
+                        <span class="info-value" id="contrastRatio">--</span>
+                    </div>
+                    <div class="color-info-item">
+                        <span class="info-label">可读性:</span>
+                        <span class="info-value" id="readabilityScore">--</span>
+                    </div>
+                </div>
+                
+                <div class="similar-colors-section">
+                    <h4>相似色推荐</h4>
+                    <div class="similar-colors-list" id="similarColorsList"></div>
+                </div>
+            </div>
+            
             <button type="button" class="edit-detail-btn" id="editDetailBtn">编辑</button>
         </div>
     </div>
