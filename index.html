@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://xgalutaglwryurdmwbpl.supabase.co">
     <link rel="dns-prefetch" href="https://api.ocr.space">
@@ -635,5 +638,19 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="script.js" defer></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('[PWA] Service Worker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('[PWA] Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

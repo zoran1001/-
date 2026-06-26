@@ -7,6 +7,87 @@ const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
 const CURRENT_VERSION = '2.0';
 
+// PWA IndexedDB 离线存储
+const DB_NAME = 'ColorCardsDB';
+const DB_VERSION = 1;
+let offlineDB = null;
+
+// 初始化 IndexedDB
+async function initOfflineDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            offlineDB = request.result;
+            console.log('[PWA] IndexedDB initialized');
+            resolve(offlineDB);
+        };
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('cards')) {
+                db.createObjectStore('cards', { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains('materials')) {
+                db.createObjectStore('materials', { keyPath: 'name' });
+            }
+            if (!db.objectStoreNames.contains('manufacturers')) {
+                db.createObjectStore('manufacturers', { keyPath: 'name' });
+            }
+            if (!db.objectStoreNames.contains('pendingSyncs')) {
+                db.createObjectStore('pendingSyncs', { keyPath: 'id', autoIncrement: true });
+            }
+            console.log('[PWA] IndexedDB stores created');
+        };
+    });
+}
+
+// IndexedDB 辅助函数
+async function dbGetAll(storeName) {
+    if (!offlineDB) await initOfflineDB();
+    return new Promise((resolve, reject) => {
+        const transaction = offlineDB.transaction([storeName], 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function dbPut(storeName, data) {
+    if (!offlineDB) await initOfflineDB();
+    return new Promise((resolve, reject) => {
+        const transaction = offlineDB.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = Array.isArray(data) 
+            ? data.forEach(item => store.put(item))
+            : store.put(data);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+}
+
+async function dbDelete(storeName, key) {
+    if (!offlineDB) await initOfflineDB();
+    return new Promise((resolve, reject) => {
+        const transaction = offlineDB.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.delete(key);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+}
+
+async function dbClear(storeName) {
+    if (!offlineDB) await initOfflineDB();
+    return new Promise((resolve, reject) => {
+        const transaction = offlineDB.transaction([storeName], 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.clear();
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+}
+
 // Supabase 云端配置
 const SUPABASE_URL = 'https://xgalutaglwryurdmwbpl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnYWx1dGFnbHdyeXVyZG13YnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTM3MTksImV4cCI6MjA5NzgyOTcxOX0.CfJ5kjGHI2_np7nUfl8O12-xBC2T8mj_xsEl-fG_NJc';
@@ -401,7 +482,29 @@ const defaultTemplate = {
 };
 
 const Storage = {
-    loadCards() {
+    async loadCards() {
+        // 优先从 IndexedDB 加载（离线支持）
+        if (navigator.onLine === false || offlineDB) {
+            try {
+                const dbCards = await dbGetAll('cards');
+                if (dbCards && dbCards.length > 0) {
+                    console.log('[PWA] Loaded cards from IndexedDB');
+                    return dbCards.map(card => {
+                        if (typeof card.config === 'string') {
+                            return { ...card, config: Utils.parseConfig(card.config) };
+                        }
+                        if (!card.config || !Array.isArray(card.config)) {
+                            return { ...card, config: [{ key: '流量比', value: '' }] };
+                        }
+                        return card;
+                    });
+                }
+            } catch (e) {
+                console.warn('[PWA] Failed to load from IndexedDB:', e);
+            }
+        }
+
+        // 回退到 localStorage
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             try {
@@ -422,11 +525,35 @@ const Storage = {
         return [...defaultCards];
     },
 
-    saveCards(cards) {
+    async saveCards(cards) {
+        // 同时保存到 localStorage 和 IndexedDB
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+        
+        // 离线时记录待同步操作
+        if (navigator.onLine === false) {
+            try {
+                await dbPut('pendingSyncs', {
+                    type: 'sync-all',
+                    data: cards,
+                    timestamp: Date.now()
+                });
+                console.log('[PWA] Saved to IndexedDB (offline mode)');
+            } catch (e) {
+                console.warn('[PWA] Failed to save to IndexedDB:', e);
+            }
+        } else {
+            // 在线时直接同步到 IndexedDB
+            try {
+                await dbClear('cards');
+                await dbPut('cards', cards);
+                console.log('[PWA] Synced cards to IndexedDB');
+            } catch (e) {
+                console.warn('[PWA] Failed to sync to IndexedDB:', e);
+            }
+        }
     },
 
-    loadTemplate() {
+    async loadTemplate() {
         const saved = localStorage.getItem(TEMPLATE_KEY);
         if (saved) {
             try {
@@ -446,7 +573,19 @@ const Storage = {
         localStorage.setItem(TEMPLATE_KEY, JSON.stringify(template));
     },
 
-    loadMaterials() {
+    async loadMaterials() {
+        // 优先从 IndexedDB 加载
+        if (offlineDB) {
+            try {
+                const dbMaterials = await dbGetAll('materials');
+                if (dbMaterials && dbMaterials.length > 0) {
+                    return dbMaterials.map(m => m.name);
+                }
+            } catch (e) {
+                console.warn('[PWA] Failed to load materials from IndexedDB:', e);
+            }
+        }
+
         const saved = localStorage.getItem(MATERIALS_KEY);
         if (saved) {
             try {
@@ -458,11 +597,34 @@ const Storage = {
         return [...defaultMaterials];
     },
 
-    saveMaterials(materials) {
+    async saveMaterials(materials) {
         localStorage.setItem(MATERIALS_KEY, JSON.stringify(materials));
+        
+        // 同步到 IndexedDB
+        if (offlineDB) {
+            try {
+                await dbClear('materials');
+                const rows = materials.map(name => ({ name }));
+                await dbPut('materials', rows);
+            } catch (e) {
+                console.warn('[PWA] Failed to sync materials to IndexedDB:', e);
+            }
+        }
     },
     
-    loadManufacturers() {
+    async loadManufacturers() {
+        // 优先从 IndexedDB 加载
+        if (offlineDB) {
+            try {
+                const dbManufacturers = await dbGetAll('manufacturers');
+                if (dbManufacturers && dbManufacturers.length > 0) {
+                    return dbManufacturers.map(m => m.name);
+                }
+            } catch (e) {
+                console.warn('[PWA] Failed to load manufacturers from IndexedDB:', e);
+            }
+        }
+
         const saved = localStorage.getItem(MANUFACTURERS_KEY);
         if (saved) {
             try {
@@ -474,8 +636,19 @@ const Storage = {
         return [...defaultManufacturers];
     },
 
-    saveManufacturers(manufacturers) {
+    async saveManufacturers(manufacturers) {
         localStorage.setItem(MANUFACTURERS_KEY, JSON.stringify(manufacturers));
+        
+        // 同步到 IndexedDB
+        if (offlineDB) {
+            try {
+                await dbClear('manufacturers');
+                const rows = manufacturers.map(name => ({ name }));
+                await dbPut('manufacturers', rows);
+            } catch (e) {
+                console.warn('[PWA] Failed to sync manufacturers to IndexedDB:', e);
+            }
+        }
     }
 };
 
@@ -3269,7 +3442,15 @@ class CardManager {
         document.getElementById('statsModal').style.display = 'block';
     }
 
-    init() {
+    async init() {
+        // 初始化 PWA IndexedDB 离线存储
+        try {
+            await initOfflineDB();
+            console.log('[PWA] Offline storage ready');
+        } catch (e) {
+            console.warn('[PWA] Failed to initialize IndexedDB:', e);
+        }
+
         this.clearOldData();
         this.materialManager.updateSelects();
         this.currentCategory = 'all';
