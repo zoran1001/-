@@ -3308,4 +3308,34 @@ class CardManager {
 document.addEventListener('DOMContentLoaded', () => {
     window.cardManager = new CardManager();
     window.cardManager.init();
+
+    // 同浏览器多标签同步：监听 localStorage 变化
+    window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY && window.cardManager) {
+            console.log('[Sync] 检测到其他标签页数据变化，重新加载');
+            window.cardManager.cards = JSON.parse(e.newValue || '[]');
+            window.cardManager.applyFilters();
+        }
+    });
+
+    // 跨设备同步：每 30 秒从云端拉取最新数据
+    if (CloudStorage.isAvailable()) {
+        setInterval(async () => {
+            if (!window.cardManager || window.cardManager._syncing) return;
+            window.cardManager._syncing = true;
+            try {
+                const cloudCards = await CloudStorage.loadCards();
+                if (cloudCards && JSON.stringify(cloudCards) !== JSON.stringify(window.cardManager.cards)) {
+                    console.log('[Sync] 云端数据有变化，更新本地');
+                    window.cardManager.cards = cloudCards;
+                    Storage.saveCards(cloudCards);
+                    window.cardManager.applyFilters();
+                }
+            } catch (e) {
+                console.warn('[Sync] 定时同步失败', e);
+            } finally {
+                window.cardManager._syncing = false;
+            }
+        }, 30000);
+    }
 });
