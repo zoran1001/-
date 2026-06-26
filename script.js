@@ -13,6 +13,42 @@ const log = (...args) => DEBUG ? console.log(...args) : undefined;
 const warn = (...args) => DEBUG ? console.warn(...args) : undefined;
 const error = (...args) => DEBUG ? console.error(...args) : undefined;
 
+// Common error handler to reduce repetitive try-catch blocks
+const handleError = (context, err, showAlert = true) => {
+    error(`${context}:`, err);
+    if (showAlert) alert(`${context}失败，请重试`);
+};
+
+// Utility: bind click-outside-to-close for modals
+function bindModalClose(modalId, closeFn) {
+    window.addEventListener('click', (e) => {
+        if (e.target === document.getElementById(modalId)) {
+            closeFn();
+        }
+    });
+}
+
+// DOM Cache - frequently accessed elements
+const DOM = {};
+function cacheDOMElements() {
+    const ids = [
+        'cardsContainer', 'searchInput', 'searchClear', 'sortSelect',
+        'addCardBtn', 'templateBtn', 'adminBtn', 'refreshBtn',
+        'batchModeBtn', 'batchCancelBtn', 'batchSelectAll', 'batchDeleteBtn',
+        'batchExportBtn', 'batchApplyBtn', 'batchStockOp', 'batchStockVal',
+        'batchManufacturer', 'batchMaterial', 'batchCount',
+        'lowStockWarning', 'lowStockText', 'lowStockDismiss',
+        'stockSettingsBtn', 'stockLogBtn', 'statsBtn',
+        'toastContainer', 'scanModal', 'exportModal', 'stockSettingsModal',
+        'stockLogModal', 'statsModal', 'adminModal',
+        'addCardModal', 'editCardModal', 'detailCardModal', 'editTemplateModal'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) DOM[id] = el;
+    });
+}
+
 // Constants
 const OCR_MAX_SIZE = 1200;
 const OCR_QUALITY = 0.8;
@@ -1414,7 +1450,7 @@ class CardManager {
         this.template = Storage.loadTemplate();
         this.currentEditingCard = null;
         this.currentDetailCard = null;
-        this.cardsContainer = document.getElementById('cardsContainer');
+        this.cardsContainer = DOM.cardsContainer || document.getElementById('cardsContainer');
         this.modalManager = new ModalManager();
         this.materialManager = new MaterialManager();
         this.lowStockDismissed = false;  // 用户是否已手动关闭警告
@@ -1427,6 +1463,7 @@ class CardManager {
         this.stockLogManager = new StockLogManager();
         this.undoManager = new UndoManager(this);
         this.draggedCardId = null;
+        this._lastRenderedKey = null;    // Cache for avoiding unnecessary re-renders
         this.bindEvents();
         this.setupDelegatedEvents();
     }
@@ -1581,11 +1618,7 @@ class CardManager {
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
 
         // 点击外部关闭扫描模态框
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('scanModal')) {
-                this.closeScanModal();
-            }
-        });
+        bindModalClose('scanModal', () => this.closeScanModal());
 
         // 拖拽上传支持
         const uploadArea = document.getElementById('scanUploadArea');
@@ -1619,11 +1652,8 @@ class CardManager {
 
         // 导出模态框
         document.getElementById('closeExportModalBtn').addEventListener('click', () => this.closeExportModal());
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('exportModal')) {
-                this.closeExportModal();
-            }
-        });
+        bindModalClose('exportModal', () => this.closeExportModal());
+        
         document.querySelectorAll('.export-option-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const format = btn.getAttribute('data-format');
@@ -1655,21 +1685,15 @@ class CardManager {
         document.getElementById('stockLogSearch').addEventListener('input', () => this.renderStockLog());
 
         // 点击外部关闭日志模态框
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('stockLogModal')) {
-                this.closeStockLog();
-            }
-        });
+        bindModalClose('stockLogModal', () => this.closeStockLog());
 
         // 统计面板
         document.getElementById('statsBtn').addEventListener('click', () => this.showStats());
         document.getElementById('closeStatsModalBtn').addEventListener('click', () => {
             document.getElementById('statsModal').style.display = 'none';
         });
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('statsModal')) {
-                document.getElementById('statsModal').style.display = 'none';
-            }
+        bindModalClose('statsModal', () => {
+            document.getElementById('statsModal').style.display = 'none';
         });
 
         // 库存预警设置
@@ -1684,11 +1708,7 @@ class CardManager {
             thresholdValue.textContent = e.target.value;
         });
         
-        window.addEventListener('click', (e) => {
-            if (e.target === document.getElementById('stockSettingsModal')) {
-                this.closeStockSettings();
-            }
-        });
+        bindModalClose('stockSettingsModal', () => this.closeStockSettings());
 
         // 刷新按钮
         document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -3387,6 +3407,13 @@ class CardManager {
     }
 
     renderCards(cards = this.cards) {
+        // Generate cache key to detect changes
+        const cacheKey = `${cards.length}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
+        if (this._lastRenderedKey === cacheKey && cards.length > 0) {
+            return; // Skip re-render if nothing changed
+        }
+        this._lastRenderedKey = cacheKey;
+
         this.cardsContainer.innerHTML = '';
 
         if (cards.length === 0) {
@@ -3789,8 +3816,7 @@ class CardManager {
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
-            error('添加色卡失败:', error);
-            alert('添加色卡失败，请重试');
+            handleError('添加色卡', error);
         }
     }
 
@@ -3869,8 +3895,7 @@ class CardManager {
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
-            error('编辑色卡失败:', error);
-            alert('编辑色卡失败，请重试');
+            handleError('编辑色卡', error);
         }
     }
 
@@ -3940,8 +3965,7 @@ class CardManager {
             });
             this.undoManager.showUndoToast(`已删除「${deletedCard.chineseName}」`);
         } catch (error) {
-            error('删除色卡失败:', error);
-            alert('删除色卡失败，请重试');
+            handleError('删除色卡', error);
         }
     }
 
@@ -3969,8 +3993,7 @@ class CardManager {
             this.applyTemplateToAllCards();
             this.modalManager.close('editTemplate');
         } catch (error) {
-            error('保存模板失败:', error);
-            alert('保存模板失败，请重试');
+            handleError('保存模板', error);
         }
     }
 
@@ -3998,22 +4021,8 @@ class CardManager {
         const activeBtn = document.querySelector(`[data-category="${this.currentCategory}"]`);
         if (activeBtn) activeBtn.classList.add('active');
 
-        // 先用分类筛选
-        let filtered = this.currentCategory === 'all' 
-            ? [...this.cards] 
-            : this.cards.filter(card => card.category === this.currentCategory);
-
-        // 再用搜索词筛选
-        if (this.currentSearch) {
-            const kw = this.currentSearch.toLowerCase();
-            filtered = filtered.filter(card => {
-                return (card.chineseName && card.chineseName.toLowerCase().includes(kw)) ||
-                       (card.englishName && card.englishName.toLowerCase().includes(kw)) ||
-                       (card.manufacturer && card.manufacturer.toLowerCase().includes(kw)) ||
-                       (card.material && card.material.toLowerCase().includes(kw)) ||
-                       (card.notes && card.notes.toLowerCase().includes(kw));
-            });
-        }
+        // 使用统一的筛选逻辑（包含智能搜索）
+        let filtered = this.getFilteredCards();
 
         // 排序
         if (this.currentSort === 'default') {
@@ -4114,6 +4123,9 @@ class CardManager {
     }
 
     async init() {
+        // Cache frequently accessed DOM elements
+        cacheDOMElements();
+        
         // 初始化 PWA IndexedDB 离线存储
         try {
             await initOfflineDB();
