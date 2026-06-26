@@ -3,6 +3,7 @@ const TEMPLATE_KEY = 'color_card_template';
 const MATERIALS_KEY = 'color_card_materials';
 const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
+const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
 const CURRENT_VERSION = '2.0';
 
@@ -278,6 +279,34 @@ const CloudStorage = {
         }
     },
 
+    async saveMaterials(materials) {
+        if (!this.isAvailable()) return false;
+        try {
+            await supabaseClient.from('materials').delete().neq('name', '');
+            const rows = materials.map(name => ({ name }));
+            const { error } = await supabaseClient.from('materials').insert(rows);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('同步材料到云端失败', e);
+            return false;
+        }
+    },
+
+    async saveManufacturers(manufacturers) {
+        if (!this.isAvailable()) return false;
+        try {
+            await supabaseClient.from('manufacturers').delete().neq('name', '');
+            const rows = manufacturers.map(name => ({ name }));
+            const { error } = await supabaseClient.from('manufacturers').insert(rows);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.warn('同步产商到云端失败', e);
+            return false;
+        }
+    },
+
     async loadTemplate() {
         if (!this.isAvailable()) return null;
         try {
@@ -338,7 +367,13 @@ const categoryColors = {
     green: '#22c55e',
     cyan: '#06b6d4',
     blue: '#3b82f6',
-    purple: '#a855f7'
+    purple: '#a855f7',
+    black: '#1a1a1a',
+    white: '#f0f0f0',
+    gray: '#888888',
+    pink: '#ec4899',
+    brown: '#92400e',
+    rainbow: 'linear-gradient(135deg,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#a855f7)'
 };
 
 const categoryNames = {
@@ -351,7 +386,10 @@ const categoryNames = {
     purple: '紫色',
     black: '黑色',
     white: '白色',
-    gray: '灰色'
+    gray: '灰色',
+    pink: '粉色',
+    brown: '棕色',
+    rainbow: '彩虹'
 };
 
 const defaultCards = [];
@@ -790,6 +828,7 @@ class UndoManager {
                     }
                 });
                 Storage.saveCards(cm.cards);
+                localStorage.removeItem(LOCAL_DELETE_KEY);
                 if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
                 cm.applyFilters();
                 return `已恢复 ${cards.length} 张色卡`;
@@ -833,7 +872,7 @@ class UndoManager {
     }
 
     showUndoToast(description) {
-        Toast.show(description, '撤销', () => this.undo());
+        // 已关闭撤销弹窗
     }
 }
 
@@ -863,31 +902,32 @@ const ImagePreprocessor = {
                 const imageData = ctx.getImageData(0, 0, w, h);
                 const data = imageData.data;
 
-                // 1. 灰度化
-                const gray = new Uint8ClampedArray(w * h);
+                // 1. 灰度化 + 轻度对比度增强
+                const sorted = new Uint32Array(256);
                 for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-                    gray[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    sorted[Math.round(gray)]++;
+                    data[i] = data[i + 1] = data[i + 2] = gray;
                 }
 
-                // 2. 对比度拉伸（2%-98% 百分位）
-                const sorted = [...gray].sort((a, b) => a - b);
-                const low = sorted[Math.floor(sorted.length * 0.02)];
-                const high = sorted[Math.floor(sorted.length * 0.98)];
+                // 2. 温和对比度拉伸（1%-99% 百分位）
+                let count = 0;
+                let low = 0, high = 255;
+                for (let i = 0; i < 256; i++) {
+                    count += sorted[i];
+                    if (count < w * h * 0.01 && i < 255) low = i;
+                    if (count >= w * h * 0.99 && high === 255) high = i;
+                }
                 const range = high - low || 1;
+                const factor = 1.2; // 轻微增强
 
-                // 3. 二值化（Otsu 近似 + 对比度拉伸）
-                for (let j = 0; j < gray.length; j++) {
-                    // 对比度拉伸到 0-255
-                    let val = ((gray[j] - low) / range) * 255;
+                for (let i = 0; i < data.length; i += 4) {
+                    let val = ((data[i] - low) / range) * 255;
                     val = Math.max(0, Math.min(255, val));
-                    // 自适应阈值：局部偏亮则用更高阈值
-                    const threshold = val > 140 ? 160 : 120;
-                    const binarized = val > threshold ? 255 : 0;
-                    const i = j * 4;
-                    data[i] = binarized;
-                    data[i + 1] = binarized;
-                    data[i + 2] = binarized;
-                    data[i + 3] = 255;
+                    // 轻度锐化：向黑白两端拉伸
+                    val = (val - 128) * factor + 128;
+                    val = Math.max(0, Math.min(255, val));
+                    data[i] = data[i + 1] = data[i + 2] = val;
                 }
 
                 ctx.putImageData(imageData, 0, 0);
@@ -896,6 +936,109 @@ const ImagePreprocessor = {
             img.onerror = () => resolve(dataUrl);
             img.src = dataUrl;
         });
+    },
+
+    // 高对比度预处理（捕捉小字：只放大+灰度，不做对比度拉伸）
+    async preprocessHighContrast(dataUrl) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                // 放大 5 倍（比标准模式更大，专门捕捉小字）
+                const scale = Math.max(5, 4000 / Math.max(img.width, img.height));
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const imageData = ctx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+
+                // 只转灰度，不做对比度拉伸（避免破坏小字）
+                for (let i = 0; i < data.length; i += 4) {
+                    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    data[i] = data[i + 1] = data[i + 2] = gray;
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = () => resolve(dataUrl);
+            img.src = dataUrl;
+        });
+    },
+
+    // 压缩图片用于 API 发送（最大边 1024px，JPEG 0.8 质量）
+    async compressForAPI(dataUrl, maxSize = 1024) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                let w = img.width, h = img.height;
+                if (w > maxSize || h > maxSize) {
+                    if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+                    else { w = Math.round(w * maxSize / h); h = maxSize; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.onerror = () => resolve(dataUrl);
+            img.src = dataUrl;
+        });
+    }
+};
+
+// ===== OCR.Space 模块（浏览器直接调用，无需代理）=====
+const OCRSpace = {
+    apiKey: 'helloworld', // 免费 key，25000次/月，https://ocr.space/ 注册可获取更高额度
+
+    async recognize(imageDataUrl) {
+        const base64Image = imageDataUrl.split(',')[1];
+        const url = 'https://api.ocr.space/parse/image';
+        
+        const formData = new URLSearchParams();
+        formData.append('base64Image', `data:image/png;base64,${base64Image}`);
+        formData.append('language', 'chs');
+        formData.append('isOverlayRequired', 'false');
+        formData.append('apikey', this.apiKey);
+        formData.append('OCREngine', '2'); // 引擎2精度更高
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        });
+        
+        const data = await response.json();
+        
+        if (data.IsErroredOnProcessing) {
+            throw new Error(`OCR 失败：${data.ErrorMessage || '未知错误'}`);
+        }
+        
+        if (data.ParsedResults && data.ParsedResults.length > 0) {
+            const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
+            console.log('[OCRSpace] 识别成功');
+            return {
+                text: text,
+                confidence: 90,
+                wordsCount: text.split(/\s+/).length
+            };
+        } else {
+            throw new Error('OCR 未识别到文字');
+        }
     }
 };
 
@@ -905,95 +1048,158 @@ const LLMParser = {
     apiUrl: 'https://api.deepseek.com/v1/chat/completions',
     model: 'deepseek-chat',
 
-    async parse(ocrText, onProgress) {
-        const systemPrompt = `你是色卡信息提取助手。从产品标签的 OCR 文字中提取结构化信息。
+    async parse(ocrText, onProgress, imageDataUrl) {
+        const systemPrompt = `你是色卡信息提取助手，从产品标签 OCR 文字中提取结构化信息。
 
 规则：
-1. 只返回 JSON，不要其他文字
-2. 颜色分类必须是以下之一：red, orange, yellow, green, cyan, blue, purple, black, white, gray
-3. 材料是基础材质（PLA, PETG, ABS, TPU, Nylon 等），材质是变体（M, LITE, +, Pro 等）
-4. 英文名通常是颜色名（如 Red, Milk Green），中文名是英文的翻译（如 红色, 奶绿）
-5. 产商是品牌名（如 Jucoole, kexcelled, eSUN）
-6. 如果某个字段无法确定，留空字符串
+- OCR 可能有错别字，请根据上下文推断
+- 忽略温度、重量、日期等无用信息
+- 只返回 JSON：{"chineseName":"","englishName":"","manufacturer":"","material":"","variant":"","category":""}
+- 颜色分类：red/orange/yellow/green/cyan/blue/purple/black/white/gray，或其他颜色英文名
+- 材料是基础材质（PLA/PETG/ABS 等），材质是变体（Matte/Lite/M/Silk 等）
+- 英文名是颜色名，中文名是英文的中文翻译
+- 产商是品牌名（Jucoole/kexcelled/Bambu Lab 等）`;
 
-返回格式：
-{"chineseName":"","englishName":"","manufacturer":"","material":"","variant":"","category":""}`;
-
-        const userPrompt = `请从以下产品标签 OCR 文字中提取色卡信息：\n\n${ocrText}`;
+        // 构建消息内容（纯文字模式，API 不支持图片）
+        const userContent = `请从以下产品标签 OCR 文字中提取色卡信息：\n\n${ocrText}`;
 
         try {
+            const requestBody = {
+                model: this.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userContent }
+                ],
+                temperature: 0.1,
+                max_tokens: 500,
+                stream: true
+            };
+            console.log('[LLM] 请求参数:', { model: this.model, hasImage: !!imageDataUrl, systemPromptLength: systemPrompt.length });
+
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${this.apiKey}`
                 },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
-                    ],
-                    temperature: 0.1,
-                    max_tokens: 200,
-                    stream: true
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
-                throw new Error(`API 请求失败: ${response.status}`);
+                const errorBody = await response.text();
+                console.error('[LLM] API 错误:', response.status, errorBody);
+                throw new Error(`API 请求失败: ${response.status} - ${errorBody}`);
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let fullContent = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
-
-                for (const line of lines) {
-                    const data = line.slice(6).trim();
-                    if (data === '[DONE]') continue;
-
-                    try {
-                        const parsed = JSON.parse(data);
-                        const delta = parsed.choices[0]?.delta?.content || '';
-                        fullContent += delta;
-                        if (onProgress) onProgress(fullContent);
-                    } catch (e) {}
-                }
-            }
-
-            const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('LLM 返回格式异常');
-            
-            const parsed = JSON.parse(jsonMatch[0]);
-            
-            // 验证并规范化返回字段
-            return {
-                chineseName: parsed.chineseName || '',
-                englishName: parsed.englishName || '',
-                manufacturer: parsed.manufacturer || '',
-                material: parsed.material || '',
-                variant: parsed.variant || '',
-                category: this._normalizeCategory(parsed.category || '')
-            };
+            return await this._parseStreamResponse(response, onProgress);
         } catch (e) {
             console.warn('LLM 解析失败，回退到关键词方案:', e);
             return null; // 返回 null 表示失败，调用方回退到关键词方案
         }
     },
 
+    // 流式解析 API 响应
+    async _parseStreamResponse(response, onProgress) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(line => line.trim().startsWith('data: '));
+
+            for (const line of lines) {
+                const data = line.slice(6).trim();
+                if (data === '[DONE]') continue;
+
+                try {
+                    const parsed = JSON.parse(data);
+                    const delta = parsed.choices[0]?.delta?.content || '';
+                    fullContent += delta;
+                    if (onProgress) onProgress(fullContent);
+                } catch (e) {}
+            }
+        }
+
+        const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('LLM 返回格式异常');
+        
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        return {
+            chineseName: parsed.chineseName || '',
+            englishName: parsed.englishName || '',
+            manufacturer: parsed.manufacturer || '',
+            material: parsed.material || '',
+            variant: parsed.variant || '',
+            category: this._normalizeCategory(parsed.category || '')
+        };
+    },
+
     _normalizeCategory(cat) {
-        const valid = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'white', 'gray'];
+        if (!LLMParser._validCategories) {
+            LLMParser._validCategories = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'white', 'gray', 'pink', 'brown'];
+        }
         const lower = (cat || '').toLowerCase().trim();
-        return valid.includes(lower) ? lower : '';
+        // 未知分类也保留，后续由动态创建逻辑处理
+        return lower || '';
     }
 };
+
+// 动态添加新颜色分类
+function addNewCategory(catKey, catNameCN, colorHex) {
+    // 1. 添加到 categoryNames（直接写 const 对象）
+    categoryNames[catKey] = catNameCN;
+    
+    // 2. 添加到 categoryColors
+    categoryColors[catKey] = colorHex || '#888888';
+    
+    // 3. 添加到 _normalizeCategory 的 valid 数组（通过修改 LLMParser）
+    if (LLMParser._validCategories && !LLMParser._validCategories.includes(catKey)) {
+        LLMParser._validCategories.push(catKey);
+    }
+    
+    // 4. 添加到所有下拉框
+    const dropdowns = ['category', 'editCategory', 'scanCategory'];
+    for (const id of dropdowns) {
+        const select = document.getElementById(id);
+        if (select) {
+            // 检查是否已存在
+            const exists = Array.from(select.options).some(opt => opt.value === catKey);
+            if (!exists) {
+                const option = document.createElement('option');
+                option.value = catKey;
+                option.textContent = catNameCN;
+                select.appendChild(option);
+            }
+        }
+    }
+    
+    // 5. 添加到侧边栏
+    const sidebarNav = document.querySelector('.sidebar-nav');
+    if (sidebarNav) {
+        const exists = sidebarNav.querySelector(`[data-category="${catKey}"]`);
+        if (!exists) {
+            const btn = document.createElement('button');
+            btn.className = 'category-btn';
+            btn.setAttribute('data-category', catKey);
+            btn.type = 'button';
+            btn.innerHTML = `<span class="cat-dot" style="background:${colorHex || '#888888'}"></span>${catNameCN}`;
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cardManager.currentCategory = catKey;
+                cardManager.applyFilters();
+            });
+            sidebarNav.appendChild(btn);
+        }
+    }
+    
+    console.log(`[Category] 新建分类: ${catKey} (${catNameCN})`);
+}
 
 class CardManager {
     constructor() {
@@ -1461,6 +1667,7 @@ class CardManager {
         const deletedCards = this.cards.filter(c => this.selectedCards.has(c.id));
         this.cards = this.cards.filter(c => !this.selectedCards.has(c.id));
         Storage.saveCards(this.cards);
+        localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
         if (CloudStorage.isAvailable()) {
             CloudStorage.saveCards(this.cards);
         }
@@ -1632,80 +1839,22 @@ class CardManager {
         // 显示进度条
         document.getElementById('scanProgress').style.display = 'block';
         document.getElementById('scanInitialActions').style.display = 'none';
-        document.getElementById('scanProgressText').textContent = '正在预处理图片...';
-        document.getElementById('scanProgressFill').style.width = '5%';
+        document.getElementById('scanProgressText').textContent = '正在识别文字...';
+        document.getElementById('scanProgressFill').style.width = '10%';
 
         try {
-            // 1. 图片预处理
-            const processedImage = await ImagePreprocessor.preprocess(this.scanImageData);
-            document.getElementById('scanProgressFill').style.width = '10%';
-
-            // 2. 多模式 OCR：PSM 6=块, PSM 3=自动, PSM 4=列，取置信度最高的
-            document.getElementById('scanProgressText').textContent = '正在识别文字（模式 1/3）...';
-            const psmModes = [
-                { psm: 6, name: '文本块' },
-                { psm: 3, name: '自动' },
-                { psm: 4, name: '多列' }
-            ];
-
-            let bestResult = null;
-            let bestConfidence = 0;
-
-            for (let i = 0; i < psmModes.length; i++) {
-                const { psm, name } = psmModes[i];
-                document.getElementById('scanProgressText').textContent = `正在识别文字（${name}模式 ${i + 1}/${psmModes.length}）...`;
-
-                const result = await Tesseract.recognize(
-                    processedImage,
-                    'eng',
-                    {
-                        logger: (m) => {
-                            if (m.status === 'recognizing text') {
-                                const baseProgress = 10 + (i * 25);
-                                const progress = baseProgress + Math.round(m.progress * 20);
-                                document.getElementById('scanProgressFill').style.width = `${Math.min(progress, 85)}%`;
-                            }
-                        },
-                        tessedit_pageseg_mode: psm
-                    }
-                );
-
-                if (result.data.confidence > bestConfidence) {
-                    bestConfidence = result.data.confidence;
-                    bestResult = result;
-                }
-            }
-
-            // 3. 如果最佳置信度仍低于 50%，尝试中文引擎
-            if (bestConfidence < 50) {
-                document.getElementById('scanProgressText').textContent = '英文识别率低，切换中文引擎...';
-                const cnResult = await Tesseract.recognize(
-                    processedImage,
-                    'chi_sim+eng',
-                    {
-                        logger: (m) => {
-                            if (m.status === 'recognizing text') {
-                                const progress = 85 + Math.round(m.progress * 10);
-                                document.getElementById('scanProgressFill').style.width = `${progress}%`;
-                                document.getElementById('scanProgressText').textContent = `中文识别中... ${Math.round(m.progress * 100)}%`;
-                            }
-                        }
-                    }
-                );
-                if (cnResult.data.confidence > bestConfidence) {
-                    bestConfidence = cnResult.data.confidence;
-                    bestResult = cnResult;
-                }
-            }
-
-            document.getElementById('scanProgressFill').style.width = '90%';
-            document.getElementById('scanProgressText').textContent = `识别完成！置信度 ${Math.round(bestConfidence)}%，AI 解析中...`;
-
-            // 存储识别结果
-            this.scanOCRResult = bestResult.data.text;
-            this.scanOCRConfidence = bestConfidence;
-
-            // 立即调用 AI 解析
+            // 使用 OCR.Space 识别
+            document.getElementById('scanProgressText').textContent = '正在识别文字（OCR.Space）...';
+            document.getElementById('scanProgressFill').style.width = '30%';
+            
+            const ocrResult = await OCRSpace.recognize(this.scanImageData);
+            const ocrText = ocrResult.text;
+            const confidence = ocrResult.confidence;
+            console.log('[OCRSpace] 识别结果：', { confidence, text: ocrText });
+            document.getElementById('scanProgressFill').style.width = '85%';
+            document.getElementById('scanProgressText').textContent = '识别完成！AI 解析中...';
+            this.scanOCRResult = ocrText;
+            this.scanOCRConfidence = confidence;
             await this.showScanResult(this.scanOCRResult);
 
         } catch (error) {
@@ -1716,10 +1865,50 @@ class CardManager {
         }
     }
 
+    async callGoogleVision(imageDataUrl) {
+        // Google Vision API key（需要替换为你的 key）
+        const apiKey = 'AIzaSyCSpEOjy2_uV2KEYKjJSmjRR-d1MptRGms';
+        
+        // 从 data URL 提取 base64
+        const base64Image = imageDataUrl.split(',')[1];
+        
+        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                requests: [{
+                    image: {
+                        content: base64Image
+                    },
+                    features: [{
+                        type: 'TEXT_DETECTION',
+                        maxResults: 1
+                    }]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Google Vision API 失败: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.responses && data.responses[0] && data.responses[0].fullTextAnnotation) {
+            return {
+                text: data.responses[0].fullTextAnnotation.text,
+                confidence: null // Google Vision 不返回整体置信度
+            };
+        }
+        
+        throw new Error('Google Vision 未返回文本');
+    }
+
     async showScanResult(rawText) {
         // 隐藏进度条
-        document.getElementById('scanProgress').style.display = 'block';
-        document.getElementById('scanProgressFill').style.width = '90%';
+        document.getElementById('scanProgress').style.display = 'none';
         
         // 显示识别结果区域
         document.getElementById('scanResult').style.display = 'block';
@@ -1727,37 +1916,54 @@ class CardManager {
         // 显示原始识别文字
         document.getElementById('scanRawText').textContent = rawText;
 
-        // 显示 AI 解析提示
-        const parsedInfoEl = document.getElementById('scanParsedInfo');
-        if (parsedInfoEl) {
-            parsedInfoEl.innerHTML = '<h4>AI 智能解析中...</h4><p style="color:var(--accent-primary);">请稍候，正在提取色卡信息</p>';
+        // 显示 AI 解析进度
+        const parsingProgressEl = document.getElementById('scanParsingProgress');
+        const parsingContentEl = document.getElementById('scanParsingContent');
+        if (parsingProgressEl) {
+            parsingProgressEl.style.display = 'block';
+            if (parsingContentEl) parsingContentEl.textContent = '';
         }
 
-        // 优先用 LLM 解析（带进度回调），失败回退关键词方案
+        // 用 LLM 解析 OCR 文字（API 不支持图片，只发文字）
         let parsedInfo = await LLMParser.parse(rawText, (partialContent) => {
             // 实时更新进度提示
-            if (parsedInfoEl && partialContent.length > 10) {
-                parsedInfoEl.innerHTML = `<h4>AI 解析中...</h4><pre style="font-size:0.75rem;color:var(--text-muted);max-height:80px;overflow:auto;">${partialContent}</pre>`;
+            if (parsingContentEl && partialContent.length > 10) {
+                parsingContentEl.textContent = partialContent;
             }
         });
 
+        // 隐藏解析进度
+        if (parsingProgressEl) parsingProgressEl.style.display = 'none';
+
         if (!parsedInfo) {
             parsedInfo = this.parseOCRText(rawText);
-            if (parsedInfoEl) {
-                parsedInfoEl.innerHTML = '<h4>解析出的色卡信息</h4><p style="color:var(--text-muted);font-size:0.8rem;">LLM 解析失败，已使用本地关键词方案</p>';
+        }
+
+        // ===== 后处理：用关键词扫描修复 LLM 结果中的缺失/错误 =====
+        parsedInfo = this._postProcessScanResult(parsedInfo, rawText);
+        
+        // 检查是否需要新建颜色分类
+        if (parsedInfo.category && parsedInfo.englishName) {
+            const validCats = LLMParser._validCategories || ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'white', 'gray', 'pink', 'brown'];
+            if (!validCats.includes(parsedInfo.category)) {
+                // 新颜色，自动创建分类
+                const colorHex = parsedInfo.color || this._guessColorHex(parsedInfo.englishName);
+                addNewCategory(parsedInfo.category, parsedInfo.chineseName || parsedInfo.englishName, colorHex);
+                // 添加到 valid 数组
+                validCats.push(parsedInfo.category);
             }
         }
         
-        // 填充到表单
-        document.getElementById('scanChineseName').value = parsedInfo.chineseName || '';
-        document.getElementById('scanEnglishName').value = parsedInfo.englishName || '';
-        document.getElementById('scanManufacturer').value = parsedInfo.manufacturer || '';
-        document.getElementById('scanMaterial').value = parsedInfo.material || '';
-        if (document.getElementById('scanVariant')) {
-            document.getElementById('scanVariant').value = parsedInfo.variant || '';
-        }
+        // 填充到表单（安全访问）
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        setVal('scanChineseName', parsedInfo.chineseName);
+        setVal('scanEnglishName', parsedInfo.englishName);
+        setVal('scanManufacturer', parsedInfo.manufacturer);
+        setVal('scanMaterial', parsedInfo.material);
+        setVal('scanVariant', parsedInfo.variant);
         if (parsedInfo.category) {
-            document.getElementById('scanCategory').value = parsedInfo.category;
+            const catEl = document.getElementById('scanCategory');
+            if (catEl) catEl.value = parsedInfo.category;
         }
 
         // 尝试匹配现有色卡
@@ -1773,17 +1979,92 @@ class CardManager {
         'yellow': 'yellow', '黄色': 'yellow', '金色': 'yellow', 'gold': 'yellow',
         'green': 'green', '绿色': 'green', '草绿': 'green', '深绿': 'green', '浅绿': 'green',
         'milk green': 'green', '奶绿': 'green',
-        'cyan': 'cyan', '青色': 'cyan', '湖蓝': 'cyan', '天蓝': 'cyan',
-        'blue': 'blue', '蓝色': 'blue', '深蓝': 'blue', '宝蓝': 'blue',
+        'cyan': 'cyan', '青色': 'cyan', '湖蓝': 'cyan', '天蓝': 'cyan', 'sky blue': 'cyan', 'ice blue': 'cyan', '冰蓝': 'cyan',
+        'blue': 'blue', '蓝色': 'blue', '深蓝': 'blue', '宝蓝': 'blue', '藏青': 'blue', 'navy': 'blue',
         'purple': 'purple', '紫色': 'purple', '紫罗兰': 'purple', 'violet': 'purple',
+        'pink': 'pink', '粉色': 'pink', '芭比粉': 'pink', 'barbie pink': 'pink', 'lollipop': 'pink', '棒棒糖': 'pink',
         'black': 'black', '黑色': 'black',
         'white': 'white', '白色': 'white',
-        'gray': 'gray', '灰色': 'gray', 'grey': 'gray', '银灰': 'gray', '银色': 'gray', 'silver': 'gray'
+        'gray': 'gray', '灰色': 'gray', 'grey': 'gray', '银灰': 'gray', '银色': 'gray', 'silver': 'gray',
+        'brown': 'brown', '棕色': 'brown', '褐色': 'brown',
+        'beige': 'yellow', '米色': 'yellow',
+        'magenta': 'purple', '品红': 'purple',
+        'coral': 'orange', '珊瑚': 'orange',
+        'olive': 'green', '橄榄': 'green',
+        'teal': 'cyan', '青绿': 'cyan',
+        'maroon': 'red', '栗色': 'red', '酒红': 'red',
+        'indigo': 'purple', '靛蓝': 'purple',
+        'rainbow': 'rainbow', '彩虹': 'rainbow', '渐变': 'rainbow', 'gradient': 'rainbow', '多彩': 'rainbow', 'multi-color': 'rainbow', 'multicolor': 'rainbow'
     };
     _colorENtoCN = {
         'red': '红色', 'orange': '橙色', 'yellow': '黄色', 'green': '绿色',
         'milk green': '奶绿', 'cyan': '青色', 'blue': '蓝色', 'purple': '紫色',
-        'black': '黑色', 'white': '白色', 'gray': '灰色'
+        'black': '黑色', 'white': '白色', 'gray': '灰色',
+        'pink': '粉色', 'brown': '棕色', 'gold': '金色', 'silver': '银色',
+        'navy': '藏青', 'beige': '米色', 'magenta': '品红',
+        'sky blue': '天蓝', 'ice blue': '冰蓝', 'barbie pink': '芭比粉',
+        'lollipop': '棒棒糖', 'coral': '珊瑚', 'olive': '橄榄',
+        'teal': '青绿', 'maroon': '酒红', 'indigo': '蓝', 'violet': '紫罗兰',
+        'rainbow': '彩虹'
+    };
+    // SKU 颜色代码映射（常见缩写）
+    _skuColorMap = {
+        // 基础色
+        'RD': { name: 'Red', category: 'red' },
+        'RED': { name: 'Red', category: 'red' },
+        'BL': { name: 'Blue', category: 'blue' },
+        'BLUE': { name: 'Blue', category: 'blue' },
+        'GN': { name: 'Green', category: 'green' },
+        'GREEN': { name: 'Green', category: 'green' },
+        'YL': { name: 'Yellow', category: 'yellow' },
+        'YEL': { name: 'Yellow', category: 'yellow' },
+        'BK': { name: 'Black', category: 'black' },
+        'BLK': { name: 'Black', category: 'black' },
+        'WH': { name: 'White', category: 'white' },
+        'WHT': { name: 'White', category: 'white' },
+        'GY': { name: 'Gray', category: 'gray' },
+        'GRY': { name: 'Gray', category: 'gray' },
+        'OR': { name: 'Orange', category: 'orange' },
+        'ORG': { name: 'Orange', category: 'orange' },
+        'PP': { name: 'Purple', category: 'purple' },
+        'PUR': { name: 'Purple', category: 'purple' },
+        'CY': { name: 'Cyan', category: 'cyan' },
+        // 常见复合色
+        'MKGN': { name: 'Milk Green', category: 'green' },
+        'MGRN': { name: 'Milk Green', category: 'green' },
+        'SKBL': { name: 'Sky Blue', category: 'blue' },
+        'SBL': { name: 'Sky Blue', category: 'blue' },
+        'DBLU': { name: 'Dark Blue', category: 'blue' },
+        'LGRN': { name: 'Light Green', category: 'green' },
+        'DGRN': { name: 'Dark Green', category: 'green' },
+        'PK': { name: 'Pink', category: 'purple' },
+        'PNK': { name: 'Pink', category: 'purple' },
+        'BR': { name: 'Brown', category: 'orange' },
+        'BRN': { name: 'Brown', category: 'orange' },
+        'GD': { name: 'Gold', category: 'yellow' },
+        'GLD': { name: 'Gold', category: 'yellow' },
+        'SV': { name: 'Silver', category: 'gray' },
+        'SLV': { name: 'Silver', category: 'gray' },
+        'NV': { name: 'Navy', category: 'blue' },
+        'NY': { name: 'Navy', category: 'blue' },
+        'BG': { name: 'Beige', category: 'yellow' },
+        'BE': { name: 'Beige', category: 'yellow' },
+        'MG': { name: 'Magenta', category: 'purple' },
+        'MGT': { name: 'Magenta', category: 'purple' },
+        // 特殊色名缩写
+        'ICE': { name: 'Ice Blue', category: 'blue' },
+        'IBL': { name: 'Ice Blue', category: 'blue' },
+        'BARBIE': { name: 'Barbie Pink', category: 'purple' },
+        'BPINK': { name: 'Barbie Pink', category: 'purple' },
+        'LOLLIPOP': { name: 'Lollipop', category: 'purple' },
+        'LOLLI': { name: 'Lollipop', category: 'purple' },
+        'CORAL': { name: 'Coral', category: 'orange' },
+        'CRAL': { name: 'Coral', category: 'orange' },
+        'OLIVE': { name: 'Olive', category: 'green' },
+        'OLV': { name: 'Olive', category: 'green' },
+        'TEAL': { name: 'Teal', category: 'cyan' },
+        'MAROON': { name: 'Maroon', category: 'red' },
+        'MRN': { name: 'Maroon', category: 'red' }
     };
 
     parseOCRText(text) {
@@ -1890,15 +2171,41 @@ class CardManager {
         });
 
         for (const line of nameLines) {
+            // 跳过厂商名
+            if (this._manufacturerKeywords.some(b => line.toLowerCase() === b.toLowerCase())) continue;
             // 中文名
             if (!result.chineseName && /[\u4e00-\u9fa5]/.test(line) && line.length <= 20) {
                 result.chineseName = line;
                 continue;
             }
-            // 英文名（品牌名、产品名等）
-            if (!result.englishName && /^[A-Za-z][A-Za-z0-9\s\-™®+]*$/.test(line) && line.length <= 30) {
-                result.englishName = line;
-                continue;
+            // 英文名（产品名，允许含数字和特殊符号）
+            if (!result.englishName && line.length <= 30 && /[A-Za-z]/.test(line)) {
+                // 清理特殊符号但保留产品名格式
+                const cleaned = line.replace(/[™®]/g, '').trim();
+                if (cleaned.length > 0 && !this._manufacturerKeywords.some(b => cleaned.toLowerCase() === b.toLowerCase())) {
+                    result.englishName = cleaned;
+                }
+            }
+        }
+
+        // 从 SKU 提取颜色代码（如 MKGN = Milk Green）
+        if (!result.category || !result.englishName) {
+            const skuMatch = fullText.match(/SKU[:\s]*([^\s]+)/i) || fullText.match(/([A-Z]{2,}-[A-Z0-9\-]+)/);
+            if (skuMatch) {
+                const sku = skuMatch[1];
+                const parts = sku.split('-');
+                // 扫描所有分段，找颜色代码（优先倒数第二段，然后逐段检查）
+                const checkOrder = [parts.length - 2, parts.length - 3, ...Array.from({length: parts.length}, (_, i) => i)];
+                for (const idx of checkOrder) {
+                    if (idx < 0 || idx >= parts.length) continue;
+                    const colorCode = parts[idx].toUpperCase();
+                    const colorFromSKU = this._skuColorMap[colorCode];
+                    if (colorFromSKU) {
+                        if (!result.category) result.category = colorFromSKU.category;
+                        if (!result.englishName) result.englishName = colorFromSKU.name;
+                        break;
+                    }
+                }
             }
         }
 
@@ -1938,7 +2245,60 @@ class CardManager {
         for (const [keyword, category] of sorted) {
             if (lower.includes(keyword.toLowerCase())) return category;
         }
+        // 启发式：扫描文本中像颜色的词（包含颜色基础词）
+        const colorRoots = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'black', 'white', 'gray', 'grey', 'cyan', 'pink', 'brown', 'rainbow'];
+        const words = text.split(/[\s,;:()]+/).filter(w => w.length > 0);
+        for (const word of words) {
+            const w = word.toLowerCase().replace(/[^a-z]/g, '');
+            for (const root of colorRoots) {
+                if (w === root || w.includes(root)) {
+                    // 找到包含颜色词的单词，尝试匹配分类
+                    for (const [keyword, category] of sorted) {
+                        if (w.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(w)) {
+                            return category;
+                        }
+                    }
+                    // 兜底：直接返回基础颜色
+                    const rootMap = { red: 'red', green: 'green', blue: 'blue', yellow: 'yellow', orange: 'orange', purple: 'purple', black: 'black', white: 'white', gray: 'gray', grey: 'gray', cyan: 'cyan', pink: 'pink', brown: 'brown', rainbow: 'rainbow' };
+                    return rootMap[root] || '';
+                }
+            }
+        }
+        // 模糊匹配：处理 OCR 错别字（如 Blxck→Black, whlte→white）
+        for (const word of words) {
+            const w = word.toLowerCase().replace(/[^a-z]/g, '');
+            if (w.length < 3 || w.length > 10) continue;
+            for (const root of colorRoots) {
+                if (this._fuzzyMatch(w, root)) {
+                    console.log('[ColorDetect] 模糊匹配:', w, '→', root);
+                    const rootMap = { red: 'red', green: 'green', blue: 'blue', yellow: 'yellow', orange: 'orange', purple: 'purple', black: 'black', white: 'white', gray: 'gray', grey: 'gray', cyan: 'cyan', pink: 'pink', brown: 'brown', rainbow: 'rainbow' };
+                    return rootMap[root] || '';
+                }
+            }
+        }
         return '';
+    }
+
+    // 模糊字符串匹配（编辑距离 ≤ 1，且长度差 ≤ 1）
+    _fuzzyMatch(a, b) {
+        if (Math.abs(a.length - b.length) > 1) return false;
+        if (a.length === b.length) {
+            let diff = 0;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) diff++;
+                if (diff > 1) return false;
+            }
+            return diff === 1; // 恰好 1 个字符不同
+        }
+        // 长度差 1：检查是否只差一个插入/删除
+        const shorter = a.length < b.length ? a : b;
+        const longer = a.length < b.length ? b : a;
+        for (let i = 0; i < shorter.length; i++) {
+            if (shorter[i] !== longer[i]) {
+                return shorter === longer.slice(i + 1); // 跳过 longer 的第 i 个字符后是否相等
+            }
+        }
+        return true; // 只差最后一个字符
     }
 
     _detectManufacturer(text) {
@@ -1988,24 +2348,40 @@ class CardManager {
     }
 
     matchCard(parsedInfo) {
-        // 根据中文名或英文名匹配现有色卡
+        // 根据中文名、英文名或颜色分类匹配现有色卡
         const matchResult = document.getElementById('scanMatchResult');
         const matchText = document.getElementById('scanMatchText');
 
-        if (!parsedInfo.chineseName && !parsedInfo.englishName) {
+        // 如果只有英文名且是颜色名，自动填充中文名
+        if (parsedInfo.englishName && !parsedInfo.chineseName) {
+            const enLower = parsedInfo.englishName.toLowerCase();
+            for (const [enName, cnName] of Object.entries(this._colorENtoCN)) {
+                if (enLower === enName || enLower.includes(enName)) {
+                    parsedInfo.chineseName = cnName;
+                    // 同步更新表单
+                    const cnEl = document.getElementById('scanChineseName');
+                    if (cnEl) cnEl.value = cnName;
+                    break;
+                }
+            }
+        }
+
+        if (!parsedInfo.chineseName && !parsedInfo.englishName && !parsedInfo.category) {
             matchResult.style.display = 'none';
             return;
         }
 
-        // 搜索匹配的色卡
+        // 搜索匹配的色卡（支持名称包含 + 颜色分类匹配）
         const matchedCards = this.cards.filter(card => {
             const nameMatch = parsedInfo.chineseName && 
                 (card.chineseName.includes(parsedInfo.chineseName) || 
                  parsedInfo.chineseName.includes(card.chineseName));
             const enNameMatch = parsedInfo.englishName && 
-                (card.englishName.includes(parsedInfo.englishName) || 
-                 parsedInfo.englishName.includes(card.englishName));
-            return nameMatch || enNameMatch;
+                (card.englishName.toLowerCase().includes(parsedInfo.englishName.toLowerCase()) || 
+                 parsedInfo.englishName.toLowerCase().includes(card.englishName.toLowerCase()));
+            const categoryMatch = parsedInfo.category && card.category === parsedInfo.category;
+            
+            return nameMatch || enNameMatch || categoryMatch;
         });
 
         if (matchedCards.length > 0) {
@@ -2028,14 +2404,137 @@ class CardManager {
         }
     }
 
+    // 后处理：用关键词扫描修复 LLM 结果中的缺失/错误
+    _postProcessScanResult(parsedInfo, rawText) {
+        if (!parsedInfo) return parsedInfo;
+        const lower = rawText.toLowerCase();
+
+        // 1. 修复英文名：如果包含明显 OCR 垃圾（太长、含管道符、含温度等），用关键词扫描
+        if (parsedInfo.englishName) {
+            const en = parsedInfo.englishName;
+            const isGarbage = en.length > 25 || en.includes('|') || en.includes('°') || 
+                            en.includes('Temp') || en.includes('Diameter') || en.includes('Code');
+            if (isGarbage) {
+                console.log('[PostProcess] 英文名含垃圾信息，重新扫描:', en);
+                const colorEN = this._findColorEN(rawText);
+                if (colorEN) {
+                    parsedInfo.englishName = colorEN;
+                    parsedInfo.chineseName = this._colorENtoCN[colorEN] || colorEN;
+                }
+            }
+        }
+
+        // 2. 修复颜色分类：如果为空，从原文扫描
+        if (!parsedInfo.category) {
+            const detectedColor = this._detectColor(rawText);
+            if (detectedColor) {
+                console.log('[PostProcess] 从原文扫描到颜色:', detectedColor);
+                parsedInfo.category = detectedColor;
+                // 同步修复英文名和中文名
+                if (!parsedInfo.englishName) {
+                    const colorEN = this._findColorEN(rawText);
+                    if (colorEN) {
+                        parsedInfo.englishName = colorEN;
+                        parsedInfo.chineseName = this._colorENtoCN[colorEN] || colorEN;
+                    } else {
+                        // 用分类名作为英文名
+                        parsedInfo.englishName = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1);
+                        parsedInfo.chineseName = this._colorENtoCN[detectedColor] || parsedInfo.englishName;
+                    }
+                }
+            }
+        }
+
+        // 3. 修复产商：补全 "Bambu" → "Bambu Lab"
+        if (parsedInfo.manufacturer === 'Bambu' && lower.includes('lab')) {
+            parsedInfo.manufacturer = 'Bambu Lab';
+        }
+
+        // 4. 修复材质：如果材质字段包含垃圾信息（如直径、温度等），清空
+        if (parsedInfo.variant) {
+            const isGarbage = parsedInfo.variant.includes('Diameter') || 
+                            parsedInfo.variant.includes('Temp') || 
+                            parsedInfo.variant.includes('mm') ||
+                            parsedInfo.variant.length > 20;
+            if (isGarbage) {
+                console.log('[PostProcess] 材质字段含垃圾信息，清空:', parsedInfo.variant);
+                // 尝试从原文找 Lite/Matte/Silk 等
+                const variantMatch = rawText.match(/\b(Lite|Matte|Silk|Pro|Plus|\+|M|LITE)\b/i);
+                parsedInfo.variant = variantMatch ? variantMatch[1] : '';
+            }
+        }
+
+        // 5. 如果中文名和英文名都为空，但分类有值，补充默认名称
+        if (!parsedInfo.chineseName && !parsedInfo.englishName && parsedInfo.category) {
+            parsedInfo.englishName = parsedInfo.category.charAt(0).toUpperCase() + parsedInfo.category.slice(1);
+            parsedInfo.chineseName = this._colorENtoCN[parsedInfo.category] || parsedInfo.englishName;
+        }
+
+        return parsedInfo;
+    }
+
+    // 合并两次 OCR 识别结果
+    _mergeOCRResults(text1, text2, confidence1, confidence2) {
+        // 如果某次置信度太低（<30），只用另一次的结果
+        if (confidence1 < 30) return text2;
+        if (confidence2 < 30) return text1;
+
+        const lines1 = text1.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const lines2 = text2.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+        // 收集所有行，去重（相似度 > 0.7 视为重复）
+        const allLines = [...lines1];
+        for (const line2 of lines2) {
+            let isDuplicate = false;
+            for (const line1 of lines1) {
+                // 简单相似度：较短行在较长行中的包含关系
+                const shorter = line1.length < line2.length ? line1 : line2;
+                const longer = line1.length < line2.length ? line2 : line1;
+                if (longer.includes(shorter) && shorter.length > 2) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (!isDuplicate) allLines.push(line2);
+        }
+
+        return allLines.join('\n');
+    }
+
+    // 根据颜色名猜测十六进制颜色
+    _guessColorHex(name) {
+        if (!name) return '#888888';
+        const lower = name.toLowerCase();
+        const colorMap = {
+            'pink': '#ff69b4', '粉色': '#ff69b4', '芭比粉': '#ff69b4',
+            'brown': '#8b4513', '棕色': '#8b4513', '褐色': '#8b4513',
+            'gold': '#ffd700', '金色': '#ffd700',
+            'silver': '#c0c0c0', '银色': '#c0c0c0',
+            'navy': '#000080', '藏青': '#000080',
+            'beige': '#f5f5dc', '米色': '#f5f5dc',
+            'magenta': '#ff00ff', '品红': '#ff00ff',
+            'coral': '#ff7f50', '珊瑚': '#ff7f50',
+            'olive': '#808000', '橄榄': '#808000',
+            'teal': '#008080', '青绿': '#008080',
+            'maroon': '#800000', '栗色': '#800000',
+            'indigo': '#4b0082', '蓝': '#4b0082',
+            'rainbow': '#ff6b6b', '彩虹': '#ff6b6b', '渐变': '#ff6b6b', 'gradient': '#ff6b6b'
+        };
+        for (const [key, hex] of Object.entries(colorMap)) {
+            if (lower.includes(key)) return hex;
+        }
+        return '#888888';
+    }
+
     confirmScanResult() {
-        const chineseName = document.getElementById('scanChineseName').value.trim();
-        const englishName = document.getElementById('scanEnglishName').value.trim();
-        const manufacturer = document.getElementById('scanManufacturer').value.trim();
-        const material = document.getElementById('scanMaterial').value.trim();
-        const variant = document.getElementById('scanVariant') ? document.getElementById('scanVariant').value.trim() : '';
-        const category = document.getElementById('scanCategory').value;
-        const scanColor = document.getElementById('scanColor').value;
+        const getVal = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+        const chineseName = getVal('scanChineseName');
+        const englishName = getVal('scanEnglishName');
+        const manufacturer = getVal('scanManufacturer');
+        const material = getVal('scanMaterial');
+        const variant = getVal('scanVariant');
+        const category = getVal('scanCategory');
+        const scanColor = getVal('scanColor');
 
         if (!chineseName) {
             alert('请输入中文名！');
@@ -2059,6 +2558,10 @@ class CardManager {
                 Storage.saveCards(this.cards);
                 CloudStorage.updateCard(card);
                 
+                // 自动添加新的厂商和材料到列表
+                if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+                if (material) this.materialManager.addMaterial(material);
+                
                 // 记录扫描识别库存变动
                 this.stockLogManager.add(card.id, card.chineseName, oldQuantity, card.quantity, 'scan');
                 
@@ -2076,7 +2579,7 @@ class CardManager {
                 category: category || 'gray',
                 quantity: 1,
                 config: [],
-                image: '',
+                image: this.scanImageData || '', // 保存扫描图片
                 color: scanColor || Utils.getColorForCategory(category || 'gray'),
                 notes: '',
                 sortOrder: this.cards.length
@@ -2085,6 +2588,10 @@ class CardManager {
             this.cards.push(newCard);
             Storage.saveCards(this.cards);
             CloudStorage.addCard(newCard);
+
+            // 自动添加新的厂商和材料到列表
+            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+            if (material) this.materialManager.addMaterial(material);
 
             // 记录扫描新增色卡
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
@@ -2180,7 +2687,7 @@ class CardManager {
             const color = card.color || Utils.getColorForCategory(card.category);
             const imageHtml = card.image 
                 ? `<div class="card-image"><img src="${card.image}" alt="${card.chineseName}"></div>`
-                : `<div class="card-color-preview" style="background-color: ${color};"></div>`;
+                : `<div class="card-color-preview" style="background: ${color};"></div>`;
 
             const batchCheckHtml = this.batchMode
                 ? `<div class="card-check" data-id="${card.id}"><div class="card-checkbox ${this.selectedCards.has(card.id) ? 'checked' : ''}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div></div>`
@@ -2196,7 +2703,7 @@ class CardManager {
                 ${imageHtml}
                 <div class="card-content">
                     <div class="card-title-row">
-                        <span class="card-color-dot" style="background-color: ${color};" title="${color}"></span>
+                        <span class="card-color-dot" style="background: ${color};" title="${color}"></span>
                         <h3 class="card-title">${card.chineseName}</h3>
                     </div>
                     <p class="card-subtitle">${card.englishName}</p>
@@ -2274,7 +2781,7 @@ class CardManager {
         if (card.image) {
             preview.innerHTML = `<img src="${card.image}" alt="${card.chineseName}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
         } else {
-            preview.style.backgroundColor = color;
+            preview.style.background = color;
             preview.innerHTML = '';
         }
 
@@ -2298,8 +2805,10 @@ class CardManager {
         document.getElementById('editCategory').value = card.category;
         document.getElementById('editQuantity').value = card.quantity || 0;
         document.getElementById('editNotes').value = card.notes || '';
-        document.getElementById('editColor').value = card.color || Utils.getColorForCategory(card.category);
-        document.getElementById('editColorLabel').textContent = card.color || Utils.getColorForCategory(card.category);
+        const color = card.color || Utils.getColorForCategory(card.category);
+        const solidColor = color.includes('gradient') ? '#ff6b6b' : color;
+        document.getElementById('editColor').value = solidColor;
+        document.getElementById('editColorLabel').textContent = color;
 
         this.modalManager.previews.editImage.innerHTML = '';
 
@@ -2499,6 +3008,7 @@ class CardManager {
             const deletedCard = { ...this.currentEditingCard };
             this.cards = this.cards.filter(c => c.id !== this.currentEditingCard.id);
             Storage.saveCards(this.cards);
+            localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
             CloudStorage.deleteCard(this.currentEditingCard.id);
             this.renderCards();
             this.modalManager.close('editCard');
@@ -2703,35 +3213,59 @@ class CardManager {
         }
 
         try {
-            const [cloudCards, cloudMaterials, cloudManufacturers, cloudTemplate] = await Promise.all([
-                CloudStorage.loadCards(),
-                CloudStorage.loadMaterials(),
-                CloudStorage.loadManufacturers(),
-                CloudStorage.loadTemplate()
-            ]);
+            // 第1步：加载色卡数据
+            CloudStorage.setStatus('syncing', '正在同步色卡数据...');
+            const cloudCards = await CloudStorage.loadCards();
+
+            // 第2步：加载材料列表
+            CloudStorage.setStatus('syncing', '正在同步材料列表...');
+            const cloudMaterials = await CloudStorage.loadMaterials();
+
+            // 第3步：加载产商列表
+            CloudStorage.setStatus('syncing', '正在同步产商列表...');
+            const cloudManufacturers = await CloudStorage.loadManufacturers();
+
+            // 第4步：加载模板
+            CloudStorage.setStatus('syncing', '正在同步模板配置...');
+            const cloudTemplate = await CloudStorage.loadTemplate();
 
             // 只在首次加载时用云端数据覆盖本地（避免覆盖用户正在编辑的数据）
+            const localDeleteTime = parseInt(localStorage.getItem(LOCAL_DELETE_KEY) || '0');
             if (!this.cloudSyncCompleted && cloudCards && cloudCards.length > 0) {
-                this.cards = cloudCards;
-                Storage.saveCards(this.cards);
+                // 如果本地刚删除过卡片，以本地为准，不拉云端
+                if (this.cards.length === 0 && localDeleteTime > 0) {
+                    console.log('[Sync] 本地已删除卡片，跳过云端覆盖');
+                } else {
+                    this.cards = cloudCards;
+                    Storage.saveCards(this.cards);
+                }
             } else if (cloudCards && cloudCards.length === 0 && this.cards.length > 0) {
                 // 本地有数据但云端为空，推送到云端
                 CloudStorage.saveCards(this.cards);
             }
 
             if (cloudMaterials && cloudMaterials.length > 0) {
-                this.materialManager.materials = cloudMaterials;
-                Storage.saveMaterials(cloudMaterials);
+                CloudStorage.setStatus('syncing', '正在合并材料列表...');
+                // 合并云端和本地材料列表，去重
+                const merged = [...new Set([...this.materialManager.materials, ...cloudMaterials])];
+                this.materialManager.materials = merged;
+                Storage.saveMaterials(merged);
+                if (CloudStorage.isAvailable()) CloudStorage.saveMaterials(merged);
                 this.materialManager.updateSelects();
             }
 
             if (cloudManufacturers && cloudManufacturers.length > 0) {
-                this.materialManager.manufacturers = cloudManufacturers;
-                Storage.saveManufacturers(cloudManufacturers);
+                CloudStorage.setStatus('syncing', '正在合并产商列表...');
+                // 合并云端和本地厂商列表，去重
+                const merged = [...new Set([...this.materialManager.manufacturers, ...cloudManufacturers])];
+                this.materialManager.manufacturers = merged;
+                Storage.saveManufacturers(merged);
+                if (CloudStorage.isAvailable()) CloudStorage.saveManufacturers(merged);
                 this.materialManager.updateSelects();
             }
 
             if (cloudTemplate) {
+                CloudStorage.setStatus('syncing', '正在同步模板配置...');
                 this.template = {
                     manufacturer: cloudTemplate.manufacturer || '',
                     material: cloudTemplate.material || '',
@@ -2741,6 +3275,7 @@ class CardManager {
             }
 
             this.cloudSyncCompleted = true;
+            CloudStorage.setStatus('syncing', '同步完成，加载中...');
             this.applyFilters();
             CloudStorage.setStatus('connected', '已连接云端');
             console.log('云端数据同步完成');
@@ -2767,6 +3302,6 @@ class CardManager {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const cardManager = new CardManager();
-    cardManager.init();
+    window.cardManager = new CardManager();
+    window.cardManager.init();
 });

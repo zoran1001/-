@@ -71,6 +71,18 @@
                     <span class="cat-dot" style="background:#9ca3af"></span>
                     灰色
                 </button>
+                <button class="category-btn" data-category="pink" type="button">
+                    <span class="cat-dot" style="background:#ec4899"></span>
+                    粉色
+                </button>
+                <button class="category-btn" data-category="brown" type="button">
+                    <span class="cat-dot" style="background:#92400e"></span>
+                    棕色
+                </button>
+                <button class="category-btn" data-category="rainbow" type="button">
+                    <span class="cat-dot" style="background:linear-gradient(135deg,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#a855f7)"></span>
+                    彩虹
+                </button>
             </nav>
 
             <!-- 侧边栏底部工具 -->
@@ -232,6 +244,8 @@
                         <option value="black">黑色</option>
                         <option value="white">白色</option>
                         <option value="gray">灰色</option>
+                        <option value="pink">粉色</option>
+                        <option value="brown">棕色</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -314,6 +328,8 @@
                         <option value="black">黑色</option>
                         <option value="white">白色</option>
                         <option value="gray">灰色</option>
+                        <option value="pink">粉色</option>
+                        <option value="brown">棕色</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -490,6 +506,11 @@
                     <pre id="scanRawText"></pre>
                 </div>
                 
+                <div class="scan-parsing-progress" id="scanParsingProgress" style="display:none;">
+                    <h4>AI 解析中...</h4>
+                    <pre id="scanParsingContent" style="font-size:0.75rem;color:var(--text-muted);max-height:80px;overflow:auto;"></pre>
+                </div>
+                
                 <div class="scan-parsed-info" id="scanParsedInfo">
                     <h4>解析出的色卡信息</h4>
                     <div class="scan-info-grid">
@@ -527,6 +548,8 @@
                                 <option value="black">黑色</option>
                                 <option value="white">白色</option>
                                 <option value="gray">灰色</option>
+                                <option value="pink">粉色</option>
+                                <option value="brown">棕色</option>
                             </select>
                         </div>
                         <div class="scan-info-item">
