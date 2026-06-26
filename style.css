@@ -1415,14 +1415,57 @@ footer {
         align-items: center;
     }
 
+    /* 手机端顶部栏优化 */
+    .topbar {
+        padding: 0 12px;
+        gap: 8px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .topbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .topbar-left {
+        gap: 8px;
+        min-width: 200px;
+        flex-shrink: 0;
+    }
+
+    .search-box {
+        max-width: 180px;
+    }
+
+    .search-input {
+        font-size: 0.8rem;
+        padding: 7px 28px 7px 28px;
+    }
+
+    .sort-box {
+        flex-shrink: 0;
+    }
+
+    .sort-select {
+        font-size: 0.78rem;
+        padding: 7px 24px 7px 8px;
+    }
+
+    .topbar-right {
+        gap: 2px;
+        flex-shrink: 0;
+    }
+
     .topbar-icon-btn span {
         display: none;
     }
 
     .topbar-icon-btn {
         padding: 8px;
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 40px;
+        min-height: 40px;
     }
 
     .modal-content {
@@ -1447,11 +1490,18 @@ footer {
         bottom: calc(28px + env(safe-area-inset-bottom, 0px));
         right: calc(28px + env(safe-area-inset-right, 0px));
     }
+
+    /* 平板端卡片优化 */
+    .cards-container {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
 }
 
 @media (max-width: 480px) {
     .cards-container {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
     }
 
     .card-info {
@@ -1466,6 +1516,57 @@ footer {
     .delete-btn {
         flex: none;
         width: 100%;
+    }
+
+    /* 小屏幕进一步压缩 */
+    .topbar {
+        padding: 0 8px;
+    }
+
+    .search-box {
+        max-width: 140px;
+    }
+
+    .sort-select {
+        max-width: 90px;
+        font-size: 0.75rem;
+    }
+
+    .topbar-icon-btn {
+        min-width: 36px;
+        min-height: 36px;
+        padding: 6px;
+    }
+
+    .topbar-icon-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* 卡片移动端优化 */
+    .card-title {
+        font-size: 0.85rem;
+    }
+
+    .card-subtitle {
+        font-size: 0.72rem;
+    }
+
+    .card-info label {
+        font-size: 0.72rem;
+    }
+
+    .card-info span {
+        font-size: 0.78rem;
+    }
+
+    .card-actions {
+        gap: 6px;
+    }
+
+    .card-action-btn {
+        padding: 5px 10px;
+        font-size: 0.75rem;
     }
 }
 
