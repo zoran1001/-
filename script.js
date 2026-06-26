@@ -3231,13 +3231,17 @@ class CardManager {
 
             // 只在首次加载时用云端数据覆盖本地（避免覆盖用户正在编辑的数据）
             const localDeleteTime = parseInt(localStorage.getItem(LOCAL_DELETE_KEY) || '0');
+            const recentDelete = localDeleteTime > 0 && (Date.now() - localDeleteTime < 5 * 60 * 1000); // 5分钟内
+
             if (!this.cloudSyncCompleted && cloudCards && cloudCards.length > 0) {
-                // 如果本地刚删除过卡片，以本地为准，不拉云端
-                if (this.cards.length === 0 && localDeleteTime > 0) {
-                    console.log('[Sync] 本地已删除卡片，跳过云端覆盖');
+                // 如果本地刚删除过卡片（5分钟内），以本地为准，不拉云端
+                if (this.cards.length === 0 && recentDelete) {
+                    console.log('[Sync] 本地刚删除卡片，跳过云端覆盖');
                 } else {
                     this.cards = cloudCards;
                     Storage.saveCards(this.cards);
+                    // 清除删除标记，允许后续正常同步
+                    if (!recentDelete) localStorage.removeItem(LOCAL_DELETE_KEY);
                 }
             } else if (cloudCards && cloudCards.length === 0 && this.cards.length > 0) {
                 // 本地有数据但云端为空，推送到云端
