@@ -2686,7 +2686,7 @@ class CardManager {
             
             const color = card.color || Utils.getColorForCategory(card.category);
             const imageHtml = card.image 
-                ? `<div class="card-image"><img src="${card.image}" alt="${card.chineseName}"></div>`
+                ? `<div class="card-image"><img src="${card.image}" alt="${card.chineseName}" loading="lazy"></div>`
                 : `<div class="card-color-preview" style="background: ${color};"></div>`;
 
             const batchCheckHtml = this.batchMode

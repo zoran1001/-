@@ -59,6 +59,11 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button, a, .category-btn, .sidebar-tool-btn, .topbar-icon-btn, .fab-add {
+    touch-action: manipulation;
 }
 
 html {
@@ -199,7 +204,7 @@ body::before {
 }
 
 .cloud-status.syncing .cloud-icon {
-    animation: cloudPulse 1.5s ease-in-out infinite;
+    opacity: 0.6;
 }
 
 .cloud-text {
@@ -210,11 +215,6 @@ body::before {
 .cloud-status.connected .cloud-text { color: var(--accent-success); }
 .cloud-status.disconnected .cloud-text { color: var(--accent-danger); }
 .cloud-status.syncing .cloud-text { color: var(--accent-primary); }
-
-@keyframes cloudPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.1); }
-}
 
 /* 分类导航标签 */
 .sidebar-nav-label {
@@ -359,9 +359,7 @@ body::before {
     align-items: center;
     justify-content: space-between;
     padding: 0 20px;
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--bg-primary);
     border-bottom: 1px solid var(--border-subtle);
     gap: 12px;
     position: relative;
@@ -702,12 +700,6 @@ body::before {
 .info-value.low-stock {
     color: var(--accent-danger);
     font-weight: 700;
-    animation: stockBlink 2s ease-in-out infinite;
-}
-
-@keyframes stockBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
 }
 
 .card-config {
@@ -1153,7 +1145,6 @@ body::before {
     height: 100%;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(8px);
 }
 
 .modal-content {
@@ -1401,12 +1392,14 @@ footer {
 
     .category-btn {
         justify-content: center;
-        padding: 10px;
+        padding: 12px;
+        min-height: 44px;
     }
 
     .sidebar-tool-btn {
         justify-content: center;
-        padding: 10px;
+        padding: 12px;
+        min-height: 44px;
     }
 
     .logo-icon {
@@ -1423,6 +1416,8 @@ footer {
 
     .topbar-icon-btn {
         padding: 8px;
+        min-width: 44px;
+        min-height: 44px;
     }
 
     .modal-content {
@@ -1440,6 +1435,12 @@ footer {
     #detailColorPreview {
         width: 120px;
         height: 120px;
+    }
+
+    /* FAB safe-area for iPhone home indicator */
+    .fab-add {
+        bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+        right: calc(28px + env(safe-area-inset-right, 0px));
     }
 }
 
@@ -1471,15 +1472,8 @@ footer {
 
 .skeleton-line {
     height: 14px;
-    background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card-hover) 50%, var(--bg-secondary) 75%);
-    background-size: 200% 100%;
+    background: var(--bg-secondary);
     border-radius: var(--radius-sm);
-    animation: shimmer 1.5s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
 }
 
 /* ===== 低库存警告 ===== */
@@ -1515,12 +1509,6 @@ footer {
 .low-stock-icon {
     font-size: 1.2rem;
     flex-shrink: 0;
-    animation: warningPulse 2s ease-in-out infinite;
-}
-
-@keyframes warningPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
 }
 
 .low-stock-text {
