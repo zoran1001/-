@@ -1423,6 +1423,18 @@ class CardManager {
                 document.getElementById('statsModal').style.display = 'none';
             }
         });
+
+        // 刷新按钮
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.querySelector('svg').style.animation = 'spin 1s linear infinite';
+            
+            this.loadFromCloud().finally(() => {
+                btn.disabled = false;
+                btn.querySelector('svg').style.animation = '';
+            });
+        });
     }
 
     setupDelegatedEvents() {
@@ -2582,70 +2594,92 @@ class CardManager {
             return;
         }
 
-            if (this.matchedCardId) {
-            // 更新现有色卡（增加库存）
-            const card = this.cards.find(c => c.id === this.matchedCardId);
-            if (card) {
-                const oldQuantity = card.quantity || 0;
-                card.quantity = oldQuantity + 1;
-                
-                // 更新其他信息（如果用户修改了）
-                card.englishName = englishName || card.englishName;
-                card.manufacturer = manufacturer || card.manufacturer;
-                card.material = material || card.material;
-                card.variant = variant || card.variant || '';
-                if (category) card.category = category;
+        // 显示加载状态
+        const confirmBtn = document.getElementById('scanConfirmBtn');
+        const originalText = confirmBtn.textContent;
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '保存中...';
 
+        try {
+            if (this.matchedCardId) {
+                // 更新现有色卡（增加库存）
+                const card = this.cards.find(c => c.id === this.matchedCardId);
+                if (card) {
+                    const oldQuantity = card.quantity || 0;
+                    card.quantity = oldQuantity + 1;
+                    
+                    // 更新其他信息（如果用户修改了）
+                    card.englishName = englishName || card.englishName;
+                    card.manufacturer = manufacturer || card.manufacturer;
+                    card.material = material || card.material;
+                    card.variant = variant || card.variant || '';
+                    if (category) card.category = category;
+
+                    Storage.saveCards(this.cards);
+                    
+                    // 后台同步到云端，不阻塞 UI
+                    if (CloudStorage.isAvailable()) {
+                        CloudStorage.updateCard(card).catch(e => console.warn('云端同步失败', e));
+                    }
+                    
+                    // 自动添加新的厂商和材料到列表
+                    if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+                    if (material) this.materialManager.addMaterial(material);
+                    
+                    // 记录扫描识别库存变动
+                    this.stockLogManager.add(card.id, card.chineseName, oldQuantity, card.quantity, 'scan');
+                    
+                    alert(`✅ 已更新色卡「${card.chineseName}」的库存，当前库存：${card.quantity} 件`);
+                }
+            } else {
+                // 创建新色卡
+                const newCard = {
+                    id: Date.now(),
+                    chineseName,
+                    englishName: englishName || '',
+                    manufacturer: manufacturer || '',
+                    material: material || '',
+                    variant: variant || '',
+                    category: category || 'gray',
+                    quantity: 1,
+                    config: [],
+                    image: this.scanImageData || '', // 保存扫描图片
+                    color: scanColor || Utils.getColorForCategory(category || 'gray'),
+                    notes: '',
+                    sortOrder: this.cards.length
+                };
+
+                this.cards.push(newCard);
                 Storage.saveCards(this.cards);
-                await CloudStorage.updateCard(card);
                 
+                // 后台同步到云端，不阻塞 UI
+                if (CloudStorage.isAvailable()) {
+                    CloudStorage.addCard(newCard).catch(e => console.warn('云端同步失败', e));
+                }
+
                 // 自动添加新的厂商和材料到列表
                 if (manufacturer) this.materialManager.addManufacturer(manufacturer);
                 if (material) this.materialManager.addMaterial(material);
-                
-                // 记录扫描识别库存变动
-                this.stockLogManager.add(card.id, card.chineseName, oldQuantity, card.quantity, 'scan');
-                
-                alert(`✅ 已更新色卡「${card.chineseName}」的库存，当前库存：${card.quantity} 件`);
+
+                // 记录扫描新增色卡
+                this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
+
+                alert(`✅ 已创建新色卡「${chineseName}」`);
             }
-        } else {
-            // 创建新色卡
-            const newCard = {
-                id: Date.now(),
-                chineseName,
-                englishName: englishName || '',
-                manufacturer: manufacturer || '',
-                material: material || '',
-                variant: variant || '',
-                category: category || 'gray',
-                quantity: 1,
-                config: [],
-                image: this.scanImageData || '', // 保存扫描图片
-                color: scanColor || Utils.getColorForCategory(category || 'gray'),
-                notes: '',
-                sortOrder: this.cards.length
-            };
 
-            this.cards.push(newCard);
-            Storage.saveCards(this.cards);
-            await CloudStorage.addCard(newCard);
-
-            // 自动添加新的厂商和材料到列表
-            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
-            if (material) this.materialManager.addMaterial(material);
-
-            // 记录扫描新增色卡
-            this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
-
-            alert(`✅ 已创建新色卡「${chineseName}」`);
+            // 刷新显示
+            this.renderCards();
+            this.checkLowStock();
+            
+            // 关闭模态框
+            this.closeScanModal();
+        } catch (error) {
+            console.error('确认扫描结果失败:', error);
+            alert('保存失败，请重试');
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = originalText;
         }
-
-        // 刷新显示
-        this.renderCards();
-        this.checkLowStock();
-        
-        // 关闭模态框
-        this.closeScanModal();
     }
 
     showLoadingSkeleton() {
