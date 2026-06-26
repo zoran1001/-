@@ -7,6 +7,26 @@ const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
 const CURRENT_VERSION = '2.0';
 
+// Debug mode - set to false in production
+const DEBUG = false;
+const log = (...args) => DEBUG ? console.log(...args) : undefined;
+const warn = (...args) => DEBUG ? console.warn(...args) : undefined;
+const error = (...args) => DEBUG ? console.error(...args) : undefined;
+
+// Constants
+const OCR_MAX_SIZE = 1200;
+const OCR_QUALITY = 0.8;
+const CARD_IMAGE_MAX_SIZE = 800;
+const CARD_IMAGE_QUALITY = 0.85;
+const SEARCH_DEBOUNCE_MS = 300;
+const SYNC_INTERVAL_MS = 10000;
+const DELETE_KEY_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_SEARCH_HISTORY = 10;
+const STOCK_WARNING_DEFAULT_THRESHOLD = 1;
+const SIMILAR_COLORS_COUNT = 8;
+const QR_CODE_SIZE = 200;
+const QR_CODE_COLS = 3;
+
 // PWA IndexedDB 离线存储
 const DB_NAME = 'ColorCardsDB';
 const DB_VERSION = 1;
@@ -19,7 +39,7 @@ async function initOfflineDB() {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
             offlineDB = request.result;
-            console.log('[PWA] IndexedDB initialized');
+            log('[PWA] IndexedDB initialized');
             resolve(offlineDB);
         };
         request.onupgradeneeded = (event) => {
@@ -36,7 +56,7 @@ async function initOfflineDB() {
             if (!db.objectStoreNames.contains('pendingSyncs')) {
                 db.createObjectStore('pendingSyncs', { keyPath: 'id', autoIncrement: true });
             }
-            console.log('[PWA] IndexedDB stores created');
+            log('[PWA] IndexedDB stores created');
         };
     });
 }
@@ -97,10 +117,10 @@ let supabaseClient = null;
 try {
     if (window.supabase && typeof window.supabase.createClient === 'function') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('Supabase 初始化成功');
+        log('Supabase 初始化成功');
     }
 } catch (e) {
-    console.warn('Supabase 初始化失败，将使用本地存储模式', e);
+    warn('Supabase 初始化失败，将使用本地存储模式', e);
 }
 
 // camelCase -> snake_case: chineseName -> chinese_name, englishName -> english_name
@@ -168,7 +188,7 @@ const CloudStorage = {
             if (error) throw error;
             return data ? data.map(keysToCamel) : [];
         } catch (e) {
-            console.warn('从云端加载色卡失败', e);
+            warn('从云端加载色卡失败', e);
             return null;
         }
     },
@@ -196,7 +216,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('保存色卡到云端失败', e);
+            warn('保存色卡到云端失败', e);
             return false;
         }
     },
@@ -224,7 +244,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('添加色卡到云端失败', e);
+            warn('添加色卡到云端失败', e);
             return false;
         }
     },
@@ -252,7 +272,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('更新云端色卡失败', e);
+            warn('更新云端色卡失败', e);
             return false;
         }
     },
@@ -267,7 +287,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('删除云端色卡失败', e);
+            warn('删除云端色卡失败', e);
             return false;
         }
     },
@@ -282,7 +302,7 @@ const CloudStorage = {
             if (error) throw error;
             return data ? data.map(item => item.name) : [];
         } catch (e) {
-            console.warn('从云端加载材料失败', e);
+            warn('从云端加载材料失败', e);
             return null;
         }
     },
@@ -296,7 +316,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('添加材料到云端失败', e);
+            warn('添加材料到云端失败', e);
             return false;
         }
     },
@@ -311,7 +331,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('删除云端材料失败', e);
+            warn('删除云端材料失败', e);
             return false;
         }
     },
@@ -326,7 +346,7 @@ const CloudStorage = {
             if (error) throw error;
             return data ? data.map(item => item.name) : [];
         } catch (e) {
-            console.warn('从云端加载产商失败', e);
+            warn('从云端加载产商失败', e);
             return null;
         }
     },
@@ -340,7 +360,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('添加产商到云端失败', e);
+            warn('添加产商到云端失败', e);
             return false;
         }
     },
@@ -355,7 +375,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('删除云端产商失败', e);
+            warn('删除云端产商失败', e);
             return false;
         }
     },
@@ -369,7 +389,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('同步材料到云端失败', e);
+            warn('同步材料到云端失败', e);
             return false;
         }
     },
@@ -383,7 +403,7 @@ const CloudStorage = {
             if (error) throw error;
             return true;
         } catch (e) {
-            console.warn('同步产商到云端失败', e);
+            warn('同步产商到云端失败', e);
             return false;
         }
     },
@@ -401,7 +421,7 @@ const CloudStorage = {
             }
             return data;
         } catch (e) {
-            console.warn('从云端加载模板失败', e);
+            warn('从云端加载模板失败', e);
             return null;
         }
     },
@@ -432,7 +452,7 @@ const CloudStorage = {
             }
             return true;
         } catch (e) {
-            console.warn('保存模板到云端失败', e);
+            warn('保存模板到云端失败', e);
             return false;
         }
     }
@@ -488,7 +508,7 @@ const Storage = {
             try {
                 const dbCards = await dbGetAll('cards');
                 if (dbCards && dbCards.length > 0) {
-                    console.log('[PWA] Loaded cards from IndexedDB');
+                    log('[PWA] Loaded cards from IndexedDB');
                     return dbCards.map(card => {
                         if (typeof card.config === 'string') {
                             return { ...card, config: Utils.parseConfig(card.config) };
@@ -500,7 +520,7 @@ const Storage = {
                     });
                 }
             } catch (e) {
-                console.warn('[PWA] Failed to load from IndexedDB:', e);
+                warn('[PWA] Failed to load from IndexedDB:', e);
             }
         }
 
@@ -537,18 +557,18 @@ const Storage = {
                     data: cards,
                     timestamp: Date.now()
                 });
-                console.log('[PWA] Saved to IndexedDB (offline mode)');
+                log('[PWA] Saved to IndexedDB (offline mode)');
             } catch (e) {
-                console.warn('[PWA] Failed to save to IndexedDB:', e);
+                warn('[PWA] Failed to save to IndexedDB:', e);
             }
         } else {
             // 在线时直接同步到 IndexedDB
             try {
                 await dbClear('cards');
                 await dbPut('cards', cards);
-                console.log('[PWA] Synced cards to IndexedDB');
+                log('[PWA] Synced cards to IndexedDB');
             } catch (e) {
-                console.warn('[PWA] Failed to sync to IndexedDB:', e);
+                warn('[PWA] Failed to sync to IndexedDB:', e);
             }
         }
     },
@@ -582,7 +602,7 @@ const Storage = {
                     return dbMaterials.map(m => m.name);
                 }
             } catch (e) {
-                console.warn('[PWA] Failed to load materials from IndexedDB:', e);
+                warn('[PWA] Failed to load materials from IndexedDB:', e);
             }
         }
 
@@ -607,7 +627,7 @@ const Storage = {
                 const rows = materials.map(name => ({ name }));
                 await dbPut('materials', rows);
             } catch (e) {
-                console.warn('[PWA] Failed to sync materials to IndexedDB:', e);
+                warn('[PWA] Failed to sync materials to IndexedDB:', e);
             }
         }
     },
@@ -621,7 +641,7 @@ const Storage = {
                     return dbManufacturers.map(m => m.name);
                 }
             } catch (e) {
-                console.warn('[PWA] Failed to load manufacturers from IndexedDB:', e);
+                warn('[PWA] Failed to load manufacturers from IndexedDB:', e);
             }
         }
 
@@ -646,7 +666,7 @@ const Storage = {
                 const rows = manufacturers.map(name => ({ name }));
                 await dbPut('manufacturers', rows);
             } catch (e) {
-                console.warn('[PWA] Failed to sync manufacturers to IndexedDB:', e);
+                warn('[PWA] Failed to sync manufacturers to IndexedDB:', e);
             }
         }
     }
@@ -1209,7 +1229,7 @@ const OCRSpace = {
             
             if (data.ParsedResults && data.ParsedResults.length > 0) {
                 const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
-                console.log('[OCRSpace] 识别成功');
+                log('[OCRSpace] 识别成功');
                 return {
                     text: text,
                     confidence: 90,
@@ -1261,7 +1281,7 @@ const LLMParser = {
                 max_tokens: 500,
                 stream: true
             };
-            console.log('[LLM] 请求参数:', { model: this.model, hasImage: !!imageDataUrl, systemPromptLength: systemPrompt.length });
+            log('[LLM] 请求参数:', { model: this.model, hasImage: !!imageDataUrl, systemPromptLength: systemPrompt.length });
 
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
@@ -1274,13 +1294,13 @@ const LLMParser = {
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                console.error('[LLM] API 错误:', response.status, errorBody);
+                error('[LLM] API 错误:', response.status, errorBody);
                 throw new Error(`API 请求失败: ${response.status} - ${errorBody}`);
             }
 
             return await this._parseStreamResponse(response, onProgress);
         } catch (e) {
-            console.warn('LLM 解析失败，回退到关键词方案:', e);
+            warn('LLM 解析失败，回退到关键词方案:', e);
             return null; // 返回 null 表示失败，调用方回退到关键词方案
         }
     },
@@ -1385,7 +1405,7 @@ function addNewCategory(catKey, catNameCN, colorHex) {
         }
     }
     
-    console.log(`[Category] 新建分类: ${catKey} (${catNameCN})`);
+    log(`[Category] 新建分类: ${catKey} (${catNameCN})`);
 }
 
 class CardManager {
@@ -1721,7 +1741,7 @@ class CardManager {
             const reader = new FileReader();
             reader.onload = async (event) => {
                 // 压缩图片到 800px
-                const compressed = await this.compressImage(event.target.result, 800, 0.85);
+                const compressed = await this.compressImage(event.target.result, CARD_IMAGE_MAX_SIZE, CARD_IMAGE_QUALITY);
                 preview.innerHTML = `<img src="${compressed}" alt="预览">`;
                 // 将压缩后的图片存储到 input 的 dataset 中，供后续保存使用
                 e.target.dataset.compressedImage = compressed;
@@ -2198,7 +2218,7 @@ class CardManager {
             }
             this.closeExportModal();
         } catch (error) {
-            console.error('导出失败:', error);
+            error('导出失败:', error);
             alert('导出失败: ' + error.message);
         }
     }
@@ -2225,7 +2245,7 @@ class CardManager {
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        this.downloadFile(blob, `色卡导出_${new Date().toISOString().slice(0, 10)}.csv`);
+        this.downloadFile(blob, `色卡导出_${new Date().toISOString().slice(0, MAX_SEARCH_HISTORY)}.csv`);
     }
 
     async exportExcel(cards) {
@@ -2249,7 +2269,7 @@ class CardManager {
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '色卡');
-        XLSX.writeFile(wb, `色卡导出_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        XLSX.writeFile(wb, `色卡导出_${new Date().toISOString().slice(0, MAX_SEARCH_HISTORY)}.xlsx`);
     }
 
     async exportPDF(cards) {
@@ -2284,7 +2304,7 @@ class CardManager {
             headStyles: { fillColor: [99, 102, 241] }
         });
 
-        doc.save(`色卡导出_${new Date().toISOString().slice(0, 10)}.pdf`);
+        doc.save(`色卡导出_${new Date().toISOString().slice(0, MAX_SEARCH_HISTORY)}.pdf`);
     }
 
     async exportQR(cards) {
@@ -2351,7 +2371,7 @@ class CardManager {
 
         // Download as PNG
         canvas.toBlob(blob => {
-            this.downloadFile(blob, `色卡二维码_${new Date().toISOString().slice(0, 10)}.png`);
+            this.downloadFile(blob, `色卡二维码_${new Date().toISOString().slice(0, MAX_SEARCH_HISTORY)}.png`);
         });
     }
 
@@ -2566,7 +2586,7 @@ class CardManager {
             const ocrResult = await OCRSpace.recognize(this.scanImageData);
             const ocrText = ocrResult.text;
             const confidence = ocrResult.confidence;
-            console.log('[OCRSpace] 识别结果：', { confidence, text: ocrText });
+            log('[OCRSpace] 识别结果：', { confidence, text: ocrText });
             document.getElementById('scanProgressFill').style.width = '85%';
             document.getElementById('scanProgressText').textContent = '识别完成！AI 解析中...';
             this.scanOCRResult = ocrText;
@@ -2574,7 +2594,7 @@ class CardManager {
             await this.showScanResult(this.scanOCRResult);
 
         } catch (error) {
-            console.error('OCR 识别失败：', error);
+            error('OCR 识别失败：', error);
             alert('OCR 识别失败，请重试！');
             document.getElementById('scanProgress').style.display = 'none';
             document.getElementById('scanInitialActions').style.display = 'block';
@@ -2986,7 +3006,7 @@ class CardManager {
             if (w.length < 3 || w.length > 10) continue;
             for (const root of colorRoots) {
                 if (this._fuzzyMatch(w, root)) {
-                    console.log('[ColorDetect] 模糊匹配:', w, '→', root);
+                    log('[ColorDetect] 模糊匹配:', w, '→', root);
                     const rootMap = { red: 'red', green: 'green', blue: 'blue', yellow: 'yellow', orange: 'orange', purple: 'purple', black: 'black', white: 'white', gray: 'gray', grey: 'gray', cyan: 'cyan', pink: 'pink', brown: 'brown', rainbow: 'rainbow' };
                     return rootMap[root] || '';
                 }
@@ -3131,7 +3151,7 @@ class CardManager {
             const isGarbage = en.length > 25 || en.includes('|') || en.includes('°') || 
                             en.includes('Temp') || en.includes('Diameter') || en.includes('Code');
             if (isGarbage) {
-                console.log('[PostProcess] 英文名含垃圾信息，重新扫描:', en);
+                log('[PostProcess] 英文名含垃圾信息，重新扫描:', en);
                 const colorEN = this._findColorEN(rawText);
                 if (colorEN) {
                     parsedInfo.englishName = colorEN;
@@ -3144,7 +3164,7 @@ class CardManager {
         if (!parsedInfo.category) {
             const detectedColor = this._detectColor(rawText);
             if (detectedColor) {
-                console.log('[PostProcess] 从原文扫描到颜色:', detectedColor);
+                log('[PostProcess] 从原文扫描到颜色:', detectedColor);
                 parsedInfo.category = detectedColor;
                 // 同步修复英文名和中文名
                 if (!parsedInfo.englishName) {
@@ -3173,7 +3193,7 @@ class CardManager {
                             parsedInfo.variant.includes('mm') ||
                             parsedInfo.variant.length > 20;
             if (isGarbage) {
-                console.log('[PostProcess] 材质字段含垃圾信息，清空:', parsedInfo.variant);
+                log('[PostProcess] 材质字段含垃圾信息，清空:', parsedInfo.variant);
                 // 尝试从原文找 Lite/Matte/Silk 等
                 const variantMatch = rawText.match(/\b(Lite|Matte|Silk|Pro|Plus|\+|M|LITE)\b/i);
                 parsedInfo.variant = variantMatch ? variantMatch[1] : '';
@@ -3282,7 +3302,7 @@ class CardManager {
                     
                     // 后台同步到云端，不阻塞 UI
                     if (CloudStorage.isAvailable()) {
-                        CloudStorage.updateCard(card).catch(e => console.warn('云端同步失败', e));
+                        CloudStorage.updateCard(card).catch(e => warn('云端同步失败', e));
                     }
                     
                     // 自动添加新的厂商和材料到列表
@@ -3317,7 +3337,7 @@ class CardManager {
                 
                 // 后台同步到云端，不阻塞 UI
                 if (CloudStorage.isAvailable()) {
-                    CloudStorage.addCard(newCard).catch(e => console.warn('云端同步失败', e));
+                    CloudStorage.addCard(newCard).catch(e => warn('云端同步失败', e));
                 }
 
                 // 自动添加新的厂商和材料到列表
@@ -3337,7 +3357,7 @@ class CardManager {
             // 关闭模态框
             this.closeScanModal();
         } catch (error) {
-            console.error('确认扫描结果失败:', error);
+            error('确认扫描结果失败:', error);
             alert('保存失败，请重试');
         } finally {
             confirmBtn.disabled = false;
@@ -3619,7 +3639,7 @@ class CardManager {
                 return { card, color: solidColor, distance };
             })
             .sort((a, b) => a.distance - b.distance)
-            .slice(0, 8);
+            .slice(0, SIMILAR_COLORS_COUNT);
         
         if (similarCards.length === 0) {
             container.innerHTML = '<div class="empty-similar">暂无相似色卡</div>';
@@ -3769,7 +3789,7 @@ class CardManager {
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
-            console.error('添加色卡失败:', error);
+            error('添加色卡失败:', error);
             alert('添加色卡失败，请重试');
         }
     }
@@ -3849,7 +3869,7 @@ class CardManager {
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
-            console.error('编辑色卡失败:', error);
+            error('编辑色卡失败:', error);
             alert('编辑色卡失败，请重试');
         }
     }
@@ -3920,7 +3940,7 @@ class CardManager {
             });
             this.undoManager.showUndoToast(`已删除「${deletedCard.chineseName}」`);
         } catch (error) {
-            console.error('删除色卡失败:', error);
+            error('删除色卡失败:', error);
             alert('删除色卡失败，请重试');
         }
     }
@@ -3949,7 +3969,7 @@ class CardManager {
             this.applyTemplateToAllCards();
             this.modalManager.close('editTemplate');
         } catch (error) {
-            console.error('保存模板失败:', error);
+            error('保存模板失败:', error);
             alert('保存模板失败，请重试');
         }
     }
@@ -4097,9 +4117,9 @@ class CardManager {
         // 初始化 PWA IndexedDB 离线存储
         try {
             await initOfflineDB();
-            console.log('[PWA] Offline storage ready');
+            log('[PWA] Offline storage ready');
         } catch (e) {
-            console.warn('[PWA] Failed to initialize IndexedDB:', e);
+            warn('[PWA] Failed to initialize IndexedDB:', e);
         }
 
         this.clearOldData();
@@ -4175,12 +4195,12 @@ class CardManager {
             CloudStorage.setStatus('syncing', '同步完成，加载中...');
             this.applyFilters();
             CloudStorage.setStatus('connected', '已连接云端');
-            console.log('云端数据同步完成');
+            log('云端数据同步完成');
         } catch (e) {
             this.cloudSyncCompleted = true;
             CloudStorage.setStatus('disconnected', '云端同步失败，使用本地存储');
             this.applyFilters();
-            console.warn('从云端加载数据失败', e);
+            warn('从云端加载数据失败', e);
         }
     }
 
@@ -4205,7 +4225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 同浏览器多标签同步：监听 localStorage 变化
     window.addEventListener('storage', (e) => {
         if (e.key === STORAGE_KEY && window.cardManager) {
-            console.log('[Sync] 检测到其他标签页数据变化，重新加载');
+            log('[Sync] 检测到其他标签页数据变化，重新加载');
             window.cardManager.cards = JSON.parse(e.newValue || '[]');
             window.cardManager.applyFilters();
         }
@@ -4228,13 +4248,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     [...localIds].every(id => cloudIds.has(id));
 
                 if (!idsMatch) {
-                    console.log('[Sync] 云端数据有变化，更新本地');
+                    log('[Sync] 云端数据有变化，更新本地');
                     window.cardManager.cards = cloudCards;
                     Storage.saveCards(cloudCards);
                     window.cardManager.applyFilters();
                 }
             } catch (e) {
-                console.warn('[Sync] 定时同步失败', e);
+                warn('[Sync] 定时同步失败', e);
             } finally {
                 window.cardManager._syncing = false;
             }
