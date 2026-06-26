@@ -2482,6 +2482,61 @@ footer {
     }
 }
 
+/* ===== 批量导出模态框 ===== */
+.export-modal {
+    max-width: 500px;
+    padding: 24px;
+}
+
+.export-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.export-option-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+}
+
+.export-option-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+    transform: translateY(-2px);
+}
+
+.export-option-btn svg {
+    color: var(--primary-color);
+}
+
+.export-option-btn span {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.export-hint {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 12px;
+}
+
+@media (max-width: 480px) {
+    .export-options {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ===== Toast 通知 ===== */
 .toast-container {
     position: fixed;

@@ -1551,9 +1551,24 @@ class CardManager {
         document.getElementById('batchCancelBtn').addEventListener('click', () => this.toggleBatchMode());
         document.getElementById('batchSelectAll').addEventListener('click', () => this.batchSelectAll());
         document.getElementById('batchDeleteBtn').addEventListener('click', () => this.batchDelete());
+        document.getElementById('batchExportBtn').addEventListener('click', () => this.openExportModal());
         document.getElementById('batchApplyBtn').addEventListener('click', () => this.batchApply());
         document.getElementById('batchStockOp').addEventListener('change', (e) => {
             document.getElementById('batchStockVal').disabled = !e.target.value;
+        });
+
+        // 导出模态框
+        document.getElementById('closeExportModalBtn').addEventListener('click', () => this.closeExportModal());
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('exportModal')) {
+                this.closeExportModal();
+            }
+        });
+        document.querySelectorAll('.export-option-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const format = btn.getAttribute('data-format');
+                this.exportCards(format);
+            });
         });
 
         // 颜色取色器联动
@@ -1936,6 +1951,223 @@ class CardManager {
         }
         this.selectedCards.clear();
         this.applyFilters();
+    }
+
+    // ===== 批量导出功能 =====
+    openExportModal() {
+        if (this.selectedCards.size === 0) {
+            alert('请先选择要导出的色卡');
+            return;
+        }
+        document.getElementById('exportModal').style.display = 'block';
+    }
+
+    closeExportModal() {
+        document.getElementById('exportModal').style.display = 'none';
+    }
+
+    async exportCards(format) {
+        const selectedCards = this.cards.filter(c => this.selectedCards.has(c.id));
+        if (selectedCards.length === 0) {
+            alert('没有选中的色卡');
+            return;
+        }
+
+        try {
+            switch (format) {
+                case 'csv':
+                    this.exportCSV(selectedCards);
+                    break;
+                case 'excel':
+                    await this.exportExcel(selectedCards);
+                    break;
+                case 'pdf':
+                    await this.exportPDF(selectedCards);
+                    break;
+                case 'qr':
+                    await this.exportQR(selectedCards);
+                    break;
+                default:
+                    alert('不支持的导出格式');
+            }
+            this.closeExportModal();
+        } catch (error) {
+            console.error('导出失败:', error);
+            alert('导出失败: ' + error.message);
+        }
+    }
+
+    exportCSV(cards) {
+        const headers = ['中文名', '英文名', '产商', '材料', '变体', '分类', '库存', '颜色', '备注'];
+        const rows = cards.map(card => [
+            card.chineseName || '',
+            card.englishName || '',
+            card.manufacturer || '',
+            card.material || '',
+            card.variant || '',
+            categoryNames[card.category] || card.category || '',
+            card.quantity || 0,
+            card.color || '',
+            card.notes || ''
+        ]);
+
+        // BOM for Excel UTF-8 support
+        let csvContent = '\uFEFF';
+        csvContent += headers.join(',') + '\n';
+        rows.forEach(row => {
+            csvContent += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        this.downloadFile(blob, `色卡导出_${new Date().toISOString().slice(0, 10)}.csv`);
+    }
+
+    async exportExcel(cards) {
+        // Load SheetJS from CDN
+        if (!window.XLSX) {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+        }
+
+        const data = cards.map(card => ({
+            '中文名': card.chineseName || '',
+            '英文名': card.englishName || '',
+            '产商': card.manufacturer || '',
+            '材料': card.material || '',
+            '变体': card.variant || '',
+            '分类': categoryNames[card.category] || card.category || '',
+            '库存': card.quantity || 0,
+            '颜色': card.color || '',
+            '备注': card.notes || ''
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '色卡');
+        XLSX.writeFile(wb, `色卡导出_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    }
+
+    async exportPDF(cards) {
+        // Load jsPDF from CDN
+        if (!window.jspdf) {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+        }
+        if (!window.jspdf.autoTable) {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Add Chinese font support (using built-in font fallback)
+        doc.setFontSize(16);
+        doc.text('Color Cards Export', 14, 20);
+
+        const tableData = cards.map(card => [
+            card.chineseName || '',
+            card.englishName || '',
+            card.manufacturer || '',
+            card.material || '',
+            card.quantity || 0
+        ]);
+
+        doc.autoTable({
+            head: [['中文名', '英文名', '产商', '材料', '库存']],
+            body: tableData,
+            startY: 30,
+            styles: { fontSize: 10 },
+            headStyles: { fillColor: [99, 102, 241] }
+        });
+
+        doc.save(`色卡导出_${new Date().toISOString().slice(0, 10)}.pdf`);
+    }
+
+    async exportQR(cards) {
+        // Load QRCode.js from CDN
+        if (!window.QRCode) {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js');
+        }
+
+        // Create a canvas to combine all QR codes
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const qrSize = 200;
+        const padding = 20;
+        const cols = 3;
+        const rows = Math.ceil(cards.length / cols);
+        
+        canvas.width = cols * (qrSize + padding) + padding;
+        canvas.height = rows * (qrSize + padding * 3) + 40; // Extra space for text
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Generate QR code for each card
+        for (let i = 0; i < cards.length; i++) {
+            const card = cards[i];
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = col * (qrSize + padding) + padding;
+            const y = row * (qrSize + padding * 3) + 40;
+
+            // Create temporary div for QR code
+            const tempDiv = document.createElement('div');
+            const qrData = JSON.stringify({
+                name: card.chineseName,
+                englishName: card.englishName,
+                manufacturer: card.manufacturer,
+                material: card.material
+            });
+            
+            new QRCode(tempDiv, {
+                text: qrData,
+                width: qrSize,
+                height: qrSize,
+                colorDark: '#000000',
+                colorLight: '#ffffff'
+            });
+
+            // Wait for QR code to render
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Draw QR code image to canvas
+            const qrImg = tempDiv.querySelector('img');
+            if (qrImg) {
+                ctx.drawImage(qrImg, x, y, qrSize, qrSize);
+            }
+
+            // Draw card name below QR code
+            ctx.fillStyle = '#000000';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(card.chineseName, x + qrSize / 2, y + qrSize + 20);
+        }
+
+        // Download as PNG
+        canvas.toBlob(blob => {
+            this.downloadFile(blob, `色卡二维码_${new Date().toISOString().slice(0, 10)}.png`);
+        });
+    }
+
+    loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    downloadFile(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     // ===== 库存日志功能 =====

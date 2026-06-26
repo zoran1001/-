@@ -181,6 +181,10 @@
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             批量删除
                         </button>
+                        <button class="batch-action-btn export" id="batchExportBtn" type="button">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            批量导出
+                        </button>
                         <div class="batch-field-group">
                             <label class="batch-field-label">产商</label>
                             <select id="batchManufacturer" class="batch-select">
@@ -630,6 +634,33 @@
             <button class="close-btn" id="closeStatsModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
             <h2>统计面板</h2>
             <div class="stats-grid" id="statsGrid"></div>
+        </div>
+    </div>
+
+    <!-- ===== 批量导出模态框 ===== -->
+    <div class="modal" id="exportModal" role="dialog" aria-modal="true">
+        <div class="modal-content export-modal">
+            <button class="close-btn" id="closeExportModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>批量导出</h2>
+            <div class="export-options">
+                <button class="export-option-btn" data-format="csv" type="button">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>CSV</span>
+                </button>
+                <button class="export-option-btn" data-format="excel" type="button">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M12 11v8"/></svg>
+                    <span>Excel</span>
+                </button>
+                <button class="export-option-btn" data-format="pdf" type="button">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l3-3 3 3"/><path d="M12 12v6"/></svg>
+                    <span>PDF</span>
+                </button>
+                <button class="export-option-btn" data-format="qr" type="button">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3h-3"/><path d="M14 20h3v-3"/></svg>
+                    <span>二维码</span>
+                </button>
+            </div>
+            <div class="export-hint">选择导出格式，将生成包含选中色卡的文件</div>
         </div>
     </div>
 
