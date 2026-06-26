@@ -1652,6 +1652,24 @@ class CardManager {
             }
         });
 
+        // 库存预警设置
+        document.getElementById('stockSettingsBtn').addEventListener('click', () => this.openStockSettings());
+        document.getElementById('closeStockSettingsBtn').addEventListener('click', () => this.closeStockSettings());
+        document.getElementById('saveStockSettingsBtn').addEventListener('click', () => this.saveStockSettings());
+        
+        // 阈值滑块实时更新显示值
+        const thresholdSlider = document.getElementById('stockThresholdSlider');
+        const thresholdValue = document.getElementById('stockThresholdValue');
+        thresholdSlider.addEventListener('input', (e) => {
+            thresholdValue.textContent = e.target.value;
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('stockSettingsModal')) {
+                this.closeStockSettings();
+            }
+        });
+
         // 刷新按钮
         document.getElementById('refreshBtn').addEventListener('click', () => {
             const btn = document.getElementById('refreshBtn');
@@ -1791,12 +1809,18 @@ class CardManager {
         const text = document.getElementById('lowStockText');
         if (!warning || !text) return;
 
-        // 只检查 quantity 字段明确存在的卡片（排除云端未同步该字段的情况）
+        // 从 localStorage 读取自定义阈值，默认 1
+        let threshold = 1;
+        try {
+            const saved = localStorage.getItem('stock_warning_threshold');
+            if (saved) threshold = parseInt(saved, 10) || 1;
+        } catch (e) {}
+
+        // 检查低库存色卡
         const lowCards = this.cards.filter(c => {
             const qty = c.quantity;
-            // quantity 为 undefined/null 说明字段不存在，不触发警告
             if (qty === undefined || qty === null) return false;
-            return qty <= 1;
+            return qty <= threshold;
         });
 
         if (lowCards.length === 0) {
@@ -1808,14 +1832,91 @@ class CardManager {
         // 如果用户已手动关闭，不再自动弹出（除非库存状态发生变化）
         if (this.lowStockDismissed) return;
 
+        // 分析库存趋势（对比上次检查）
+        const lastCheck = this.getLastStockCheck();
+        const trends = this.analyzeStockTrends(lowCards, lastCheck);
+
         const names = lowCards.map(c => {
             const name = c.chineseName || '未命名';
             const qty = c.quantity || 0;
-            return `「${name}」库存仅 ${qty} 件`;
+            const trend = trends[c.id] || '';
+            const trendIcon = trend === 'down' ? '↓' : trend === 'up' ? '↑' : '→';
+            return `「${name}」库存 ${qty} 件 ${trendIcon}`;
         }).join('；');
 
-        text.innerHTML = `<strong>⚠ 库存预警：</strong>${names}`;
+        text.innerHTML = `<strong>⚠ 库存预警（≤${threshold}）：</strong>${names}`;
         warning.classList.add('show');
+
+        // 保存当前状态供下次对比
+        this.saveCurrentStockState();
+
+        // 发送通知（如果启用）
+        if (this.isNotificationEnabled()) {
+            this.sendStockNotification(lowCards, threshold);
+        }
+    }
+
+    getLastStockCheck() {
+        try {
+            const saved = localStorage.getItem('last_stock_check_state');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    saveCurrentStockState() {
+        const state = {};
+        this.cards.forEach(card => {
+            state[card.id] = card.quantity || 0;
+        });
+        localStorage.setItem('last_stock_check_state', JSON.stringify(state));
+    }
+
+    analyzeStockTrends(lowCards, lastState) {
+        const trends = {};
+        lowCards.forEach(card => {
+            const currentQty = card.quantity || 0;
+            const lastQty = lastState[card.id];
+            
+            if (lastQty === undefined) {
+                trends[card.id] = ''; // 首次检查，无趋势
+            } else if (currentQty < lastQty) {
+                trends[card.id] = 'down'; // 库存下降
+            } else if (currentQty > lastQty) {
+                trends[card.id] = 'up'; // 库存上升
+            } else {
+                trends[card.id] = 'stable'; // 库存稳定
+            }
+        });
+        return trends;
+    }
+
+    isNotificationEnabled() {
+        try {
+            const saved = localStorage.getItem('stock_notification_enabled');
+            return saved === 'true';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    sendStockNotification(lowCards, threshold) {
+        if (!('Notification' in window)) return;
+        
+        if (Notification.permission === 'granted') {
+            new Notification('库存预警', {
+                body: `${lowCards.length} 个色卡库存低于 ${threshold}，请及时补充`,
+                icon: '/icon-192.png',
+                tag: 'stock-warning'
+            });
+        } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    this.sendStockNotification(lowCards, threshold);
+                }
+            });
+        }
     }
 
     // ===== 批量操作功能 =====
@@ -2318,6 +2419,53 @@ class CardManager {
                 </div>
             </div>`;
         }).join('');
+    }
+
+    // ===== 库存预警设置 =====
+    openStockSettings() {
+        // 从 localStorage 加载当前设置
+        let threshold = 1;
+        let notificationEnabled = false;
+        
+        try {
+            const savedThreshold = localStorage.getItem('stock_warning_threshold');
+            if (savedThreshold) threshold = parseInt(savedThreshold, 10) || 1;
+            
+            const savedNotification = localStorage.getItem('stock_notification_enabled');
+            if (savedNotification) notificationEnabled = savedNotification === 'true';
+        } catch (e) {}
+        
+        // 更新 UI
+        document.getElementById('stockThresholdSlider').value = threshold;
+        document.getElementById('stockThresholdValue').textContent = threshold;
+        document.getElementById('stockNotificationToggle').checked = notificationEnabled;
+        
+        document.getElementById('stockSettingsModal').style.display = 'block';
+    }
+
+    closeStockSettings() {
+        document.getElementById('stockSettingsModal').style.display = 'none';
+    }
+
+    saveStockSettings() {
+        const threshold = parseInt(document.getElementById('stockThresholdSlider').value, 10);
+        const notificationEnabled = document.getElementById('stockNotificationToggle').checked;
+        
+        // 保存到 localStorage
+        localStorage.setItem('stock_warning_threshold', threshold.toString());
+        localStorage.setItem('stock_notification_enabled', notificationEnabled.toString());
+        
+        // 如果启用了通知，请求权限
+        if (notificationEnabled && 'Notification' in window && Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
+        
+        this.closeStockSettings();
+        
+        // 立即重新检查库存以应用新阈值
+        this.checkLowStock();
+        
+        alert('设置已保存');
     }
 
     // ===== 扫描识别功能 =====

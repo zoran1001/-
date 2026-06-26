@@ -107,6 +107,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                     <span>批量操作</span>
                 </button>
+                <button class="sidebar-tool-btn" id="stockSettingsBtn" type="button" title="库存预警设置">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>预警</span>
+                </button>
             </div>
         </aside>
 
@@ -691,6 +695,43 @@
                 </button>
             </div>
             <div class="export-hint">选择导出格式，将生成包含选中色卡的文件</div>
+        </div>
+    </div>
+
+    <!-- ===== 库存预警设置模态框 ===== -->
+    <div class="modal" id="stockSettingsModal" role="dialog" aria-modal="true">
+        <div class="modal-content stock-settings-modal">
+            <button class="close-btn" id="closeStockSettingsBtn" type="button" aria-label="关闭弹窗">&times;</button>
+            <h2>库存预警设置</h2>
+            
+            <div class="settings-section">
+                <label class="settings-label">预警阈值</label>
+                <div class="threshold-control">
+                    <input type="range" id="stockThresholdSlider" min="0" max="10" step="1" value="1">
+                    <div class="threshold-value">
+                        <span>≤</span>
+                        <span id="stockThresholdValue">1</span>
+                        <span>件时预警</span>
+                    </div>
+                </div>
+                <p class="settings-hint">当色卡库存低于或等于此值时触发预警</p>
+            </div>
+            
+            <div class="settings-section">
+                <label class="settings-label">通知方式</label>
+                <div class="notification-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="stockNotificationToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">启用浏览器通知</span>
+                </div>
+                <p class="settings-hint">开启后将在桌面弹出提醒（需授权）</p>
+            </div>
+            
+            <div class="settings-actions">
+                <button type="button" class="btn-primary" id="saveStockSettingsBtn">保存设置</button>
+            </div>
         </div>
     </div>
 
