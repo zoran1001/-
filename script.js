@@ -3311,7 +3311,16 @@ document.addEventListener('DOMContentLoaded', () => {
             window.cardManager._syncing = true;
             try {
                 const cloudCards = await CloudStorage.loadCards();
-                if (cloudCards && JSON.stringify(cloudCards) !== JSON.stringify(window.cardManager.cards)) {
+                if (!cloudCards) return;
+
+                // 通过卡片 ID 集合比较，避免 JSON.stringify 属性顺序问题
+                const localIds = new Set(window.cardManager.cards.map(c => c.id));
+                const cloudIds = new Set(cloudCards.map(c => c.id));
+
+                const idsMatch = localIds.size === cloudIds.size &&
+                    [...localIds].every(id => cloudIds.has(id));
+
+                if (!idsMatch) {
                     console.log('[Sync] 云端数据有变化，更新本地');
                     window.cardManager.cards = cloudCards;
                     Storage.saveCards(cloudCards);
@@ -3322,6 +3331,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 window.cardManager._syncing = false;
             }
-        }, 30000);
+        }, 10000); // 10 秒轮询一次
     }
 });
