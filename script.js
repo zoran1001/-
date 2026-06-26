@@ -3229,42 +3229,28 @@ class CardManager {
             CloudStorage.setStatus('syncing', '正在同步模板配置...');
             const cloudTemplate = await CloudStorage.loadTemplate();
 
-            // 只在首次加载时用云端数据覆盖本地（避免覆盖用户正在编辑的数据）
-            const localDeleteTime = parseInt(localStorage.getItem(LOCAL_DELETE_KEY) || '0');
-            const recentDelete = localDeleteTime > 0 && (Date.now() - localDeleteTime < 5 * 60 * 1000); // 5分钟内
-
-            if (!this.cloudSyncCompleted && cloudCards && cloudCards.length > 0) {
-                // 如果本地刚删除过卡片（5分钟内），以本地为准，不拉云端
-                if (this.cards.length === 0 && recentDelete) {
-                    console.log('[Sync] 本地刚删除卡片，跳过云端覆盖');
-                } else {
-                    this.cards = cloudCards;
-                    Storage.saveCards(this.cards);
-                    // 清除删除标记，允许后续正常同步
-                    if (!recentDelete) localStorage.removeItem(LOCAL_DELETE_KEY);
-                }
-            } else if (cloudCards && cloudCards.length === 0 && this.cards.length > 0) {
-                // 本地有数据但云端为空，推送到云端
+            // 云端为唯一数据源，直接覆盖本地
+            if (cloudCards) {
+                this.cards = cloudCards;
+                Storage.saveCards(this.cards);
+            } else if (this.cards.length > 0) {
+                // 云端为空但本地有数据，推送到云端
                 CloudStorage.saveCards(this.cards);
             }
 
-            if (cloudMaterials && cloudMaterials.length > 0) {
-                CloudStorage.setStatus('syncing', '正在合并材料列表...');
-                // 合并云端和本地材料列表，去重
-                const merged = [...new Set([...this.materialManager.materials, ...cloudMaterials])];
-                this.materialManager.materials = merged;
-                Storage.saveMaterials(merged);
-                if (CloudStorage.isAvailable()) CloudStorage.saveMaterials(merged);
+            if (cloudMaterials) {
+                CloudStorage.setStatus('syncing', '正在同步材料列表...');
+                this.materialManager.materials = cloudMaterials;
+                Storage.saveMaterials(cloudMaterials);
+                CloudStorage.saveMaterials(cloudMaterials);
                 this.materialManager.updateSelects();
             }
 
-            if (cloudManufacturers && cloudManufacturers.length > 0) {
-                CloudStorage.setStatus('syncing', '正在合并产商列表...');
-                // 合并云端和本地厂商列表，去重
-                const merged = [...new Set([...this.materialManager.manufacturers, ...cloudManufacturers])];
-                this.materialManager.manufacturers = merged;
-                Storage.saveManufacturers(merged);
-                if (CloudStorage.isAvailable()) CloudStorage.saveManufacturers(merged);
+            if (cloudManufacturers) {
+                CloudStorage.setStatus('syncing', '正在同步产商列表...');
+                this.materialManager.manufacturers = cloudManufacturers;
+                Storage.saveManufacturers(cloudManufacturers);
+                CloudStorage.saveManufacturers(cloudManufacturers);
                 this.materialManager.updateSelects();
             }
 
