@@ -323,7 +323,11 @@
                 </div>
                 <div class="form-group">
                     <label for="quantity">库存数量</label>
-                    <input type="number" id="quantity" name="quantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
+                    <div class="form-qty-control">
+                        <button type="button" class="form-qty-btn form-qty-dec" data-target="quantity">−</button>
+                        <input type="number" id="quantity" name="quantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
+                        <button type="button" class="form-qty-btn form-qty-inc" data-target="quantity">+</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="notes">备注</label>
@@ -408,7 +412,11 @@
                 </div>
                 <div class="form-group">
                     <label for="editQuantity">库存数量</label>
-                    <input type="number" id="editQuantity" name="editQuantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
+                    <div class="form-qty-control">
+                        <button type="button" class="form-qty-btn form-qty-dec" data-target="editQuantity">−</button>
+                        <input type="number" id="editQuantity" name="editQuantity" required min="0" step="1" placeholder="请输入库存数量" value="0">
+                        <button type="button" class="form-qty-btn form-qty-inc" data-target="editQuantity">+</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="editNotes">备注</label>
@@ -565,7 +573,7 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-            <div class="app-version">色卡管理工具 v1.3.0</div>
+            <div class="app-version">色卡管理工具 v1.3.1</div>
         </div>
     </div>
 

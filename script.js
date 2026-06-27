@@ -4395,4 +4395,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (categoryBtn) categoryBtn.addEventListener('click', openCategoryPanel);
     if (mobileCategoryClose) mobileCategoryClose.addEventListener('click', closeCategoryPanel);
     if (mobileCategoryOverlay) mobileCategoryOverlay.addEventListener('click', closeCategoryPanel);
+
+    // 表单库存加减按钮
+    document.querySelectorAll('.form-qty-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            let val = parseInt(input.value) || 0;
+            val = btn.classList.contains('form-qty-inc') ? val + 1 : Math.max(0, val - 1);
+            input.value = val;
+        });
+    });
 });

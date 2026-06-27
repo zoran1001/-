@@ -3355,3 +3355,56 @@ input:checked + .toggle-slider:before {
 .stock-num.low-stock {
     color: var(--accent-danger);
 }
+
+/* ===== 表单库存加减 ===== */
+.form-qty-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-qty-control input[type="number"] {
+    flex: 1;
+}
+
+.form-qty-btn {
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.form-qty-btn:active {
+    transform: scale(0.93);
+}
+
+.form-qty-btn.form-qty-inc {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.form-qty-btn.form-qty-inc:active {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.form-qty-btn.form-qty-dec {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.form-qty-btn.form-qty-dec:active {
+    background: rgba(239, 68, 68, 0.1);
+}
