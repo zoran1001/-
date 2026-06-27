@@ -792,6 +792,9 @@ class MaterialManager {
     async init() {
         this.materials = await Storage.loadMaterials();
         this.manufacturers = await Storage.loadManufacturers();
+        // 去重，清理历史重复数据
+        this.materials = [...new Set(this.materials)];
+        this.manufacturers = [...new Set(this.manufacturers)];
         this._initialized = true;
         this.updateSelects();
     }
@@ -4188,17 +4191,19 @@ class CardManager {
 
             if (cloudMaterials) {
                 CloudStorage.setStatus('syncing', '正在同步材料列表...');
-                this.materialManager.materials = cloudMaterials;
-                Storage.saveMaterials(cloudMaterials);
-                CloudStorage.saveMaterials(cloudMaterials);
+                // 去重
+                this.materialManager.materials = [...new Set(cloudMaterials)];
+                Storage.saveMaterials(this.materialManager.materials);
+                CloudStorage.saveMaterials(this.materialManager.materials);
                 this.materialManager.updateSelects();
             }
 
             if (cloudManufacturers) {
                 CloudStorage.setStatus('syncing', '正在同步产商列表...');
-                this.materialManager.manufacturers = cloudManufacturers;
-                Storage.saveManufacturers(cloudManufacturers);
-                CloudStorage.saveManufacturers(cloudManufacturers);
+                // 去重
+                this.materialManager.manufacturers = [...new Set(cloudManufacturers)];
+                Storage.saveManufacturers(this.materialManager.manufacturers);
+                CloudStorage.saveManufacturers(this.materialManager.manufacturers);
                 this.materialManager.updateSelects();
             }
 
