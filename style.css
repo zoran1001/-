@@ -3294,3 +3294,64 @@ input:checked + .toggle-slider:before {
     border-top: 1px solid var(--border-subtle);
     margin-top: 20px;
 }
+
+/* ===== 库存快速加减 ===== */
+.stock-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stock-btn {
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.stock-btn:active {
+    transform: scale(0.92);
+}
+
+.stock-btn.stock-inc {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.stock-btn.stock-inc:active {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.stock-btn.stock-dec {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.stock-btn.stock-dec:active {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.stock-num {
+    font-weight: 700;
+    font-size: 0.95rem;
+    min-width: 24px;
+    text-align: center;
+    color: var(--text-primary);
+}
+
+.stock-num.low-stock {
+    color: var(--accent-danger);
+}

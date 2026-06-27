@@ -1754,6 +1754,15 @@ class CardManager {
                 this.showEdit(cardId);
                 return;
             }
+            // 库存加减
+            const stockBtn = e.target.closest('.stock-btn');
+            if (stockBtn) {
+                e.stopPropagation();
+                const cardId = parseInt(stockBtn.getAttribute('data-id'));
+                const delta = stockBtn.classList.contains('stock-inc') ? 1 : -1;
+                this.quickAdjustStock(cardId, delta);
+                return;
+            }
             // 批量复选框
             const checkDiv = e.target.closest('.card-check');
             if (checkDiv && this.batchMode) {
@@ -1854,6 +1863,27 @@ class CardManager {
 
         this.materialManager.updateSelects();
         this.renderAdminList(type);
+    }
+
+    quickAdjustStock(cardId, delta) {
+        const card = this.cards.find(c => c.id === cardId);
+        if (!card) return;
+        const oldQty = card.quantity || 0;
+        const newQty = Math.max(0, oldQty + delta);
+        if (newQty === oldQty) return;
+        card.quantity = newQty;
+        Storage.saveCards(this.cards);
+        if (CloudStorage.isAvailable()) CloudStorage.saveCards(this.cards).catch(() => {});
+        // 局部更新DOM，避免整页重渲染
+        const cardEl = this.cardsContainer.querySelector(`[data-id="${cardId}"]`);
+        if (cardEl) {
+            const stockNum = cardEl.querySelector('.stock-num');
+            if (stockNum) {
+                stockNum.textContent = newQty;
+                stockNum.className = 'stock-num' + (newQty <= 1 ? ' low-stock' : '');
+            }
+        }
+        this.checkLowStock();
     }
 
     checkLowStock() {
@@ -3515,7 +3545,11 @@ class CardManager {
                         </div>
                         <div class="info-item">
                             <div class="info-label">库存</div>
-                            <div class="info-value${(card.quantity || 0) <= 1 ? ' low-stock' : ''}">${card.quantity || 0} 件</div>
+                            <div class="info-value stock-control">
+                                <button class="stock-btn stock-dec" data-id="${card.id}" type="button">−</button>
+                                <span class="stock-num${(card.quantity || 0) <= 1 ? ' low-stock' : ''}">${card.quantity || 0}</span>
+                                <button class="stock-btn stock-inc" data-id="${card.id}" type="button">+</button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-config">
