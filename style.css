@@ -1527,6 +1527,13 @@ footer {
         min-height: 40px;
     }
 
+    /* 底部导航已覆盖的功能，隐藏重复按钮 */
+    #statsBtn,
+    #scanBtn,
+    #adminBtn {
+        display: none;
+    }
+
     .modal-content {
         margin: 3vh auto;
         padding: 24px;
