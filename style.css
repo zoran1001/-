@@ -1476,7 +1476,8 @@ footer {
 
     /* 手机端顶部栏优化 */
     .topbar {
-        padding: 0 12px;
+        padding: env(safe-area-inset-top, 0px) 12px 0;
+        height: calc(56px + env(safe-area-inset-top, 0px));
         gap: 8px;
         flex-wrap: nowrap;
         overflow-x: auto;
