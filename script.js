@@ -4286,4 +4286,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 10000); // 10 秒轮询一次
     }
+
+    // 移动端底部导航
+    document.querySelectorAll('.mobile-nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const action = item.getAttribute('data-action');
+            
+            // 更新激活状态
+            document.querySelectorAll('.mobile-nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            
+            // 执行对应操作
+            switch (action) {
+                case 'home':
+                    // 回到首页，清空搜索
+                    document.getElementById('searchInput').value = '';
+                    window.cardManager.currentSearch = '';
+                    window.cardManager.currentCategory = 'all';
+                    window.cardManager.applyFilters();
+                    break;
+                case 'scan':
+                    window.cardManager.openScanModal();
+                    break;
+                case 'stats':
+                    window.cardManager.showStats();
+                    break;
+                case 'settings':
+                    window.cardManager.showAdmin();
+                    break;
+            }
+        });
+    });
 });
