@@ -452,7 +452,8 @@ const CloudStorage = {
                 .select('*')
                 .single();
             if (error) {
-                if (error.code === 'PGRST116') return null;
+                // PGRST116 = no rows found, 406 = not acceptable (table empty or query issue)
+                if (error.code === 'PGRST116' || error.status === 406) return null;
                 throw error;
             }
             return data;
