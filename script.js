@@ -783,8 +783,16 @@ const Utils = {
 
 class MaterialManager {
     constructor() {
-        this.materials = Storage.loadMaterials();
-        this.manufacturers = Storage.loadManufacturers();
+        this.materials = [];
+        this.manufacturers = [];
+        this._initialized = false;
+    }
+
+    async init() {
+        this.materials = await Storage.loadMaterials();
+        this.manufacturers = await Storage.loadManufacturers();
+        this._initialized = true;
+        this.updateSelects();
     }
 
     addMaterial(material) {
@@ -819,7 +827,7 @@ class MaterialManager {
             if (!select) return;
             const currentValue = select.value;
             select.innerHTML = '<option value="">请选择材料</option>';
-            this.materials.forEach(material => {
+            (this.materials || []).forEach(material => {
                 const option = document.createElement('option');
                 option.value = material;
                 option.textContent = material;
@@ -839,7 +847,7 @@ class MaterialManager {
             if (!select) return;
             const currentValue = select.value;
             select.innerHTML = '<option value="">请选择产商</option>';
-            this.manufacturers.forEach(manufacturer => {
+            (this.manufacturers || []).forEach(manufacturer => {
                 const option = document.createElement('option');
                 option.value = manufacturer;
                 option.textContent = manufacturer;
@@ -4135,7 +4143,7 @@ class CardManager {
         }
 
         this.clearOldData();
-        this.materialManager.updateSelects();
+        await this.materialManager.init();
         this.currentCategory = 'all';
         this.showLoadingSkeleton();
         this.loadFromCloud();
