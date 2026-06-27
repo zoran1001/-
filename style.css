@@ -1765,7 +1765,7 @@ footer {
 
     /* 库存预警优化 */
     .low-stock-warning {
-        padding: 0 12px;
+        padding: env(safe-area-inset-top, 0px) 12px 0;
     }
 
     .low-stock-inner {
