@@ -4317,4 +4317,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // 移动端分类面板
+    const categoryBtn = document.getElementById('categoryBtn');
+    const mobileCategoryPanel = document.getElementById('mobileCategoryPanel');
+    const mobileCategoryOverlay = document.getElementById('mobileCategoryOverlay');
+    const mobileCategoryClose = document.getElementById('mobileCategoryClose');
+    const mobileCategoryList = document.getElementById('mobileCategoryList');
+
+    function populateCategoryList() {
+        if (!mobileCategoryList) return;
+        mobileCategoryList.innerHTML = '';
+        document.querySelectorAll('.category-btn').forEach(btn => {
+            const cat = btn.getAttribute('data-category');
+            const label = btn.textContent.trim();
+            const dotEl = btn.querySelector('.cat-dot');
+            const colorHex = dotEl ? dotEl.style.background : '#8b5cf6';
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'mobile-category-item' + (btn.classList.contains('active') ? ' active' : '');
+            item.setAttribute('data-category', cat);
+            item.innerHTML = '<span class="mobile-category-dot" style="background:' + colorHex + '"></span>' + label;
+            item.addEventListener('click', () => {
+                if (window.cardManager) {
+                    window.cardManager.currentCategory = cat;
+                    window.cardManager.applyFilters();
+                }
+                closeCategoryPanel();
+            });
+            mobileCategoryList.appendChild(item);
+        });
+    }
+
+    function openCategoryPanel() {
+        populateCategoryList();
+        if (mobileCategoryPanel) mobileCategoryPanel.classList.add('show');
+    }
+
+    function closeCategoryPanel() {
+        if (mobileCategoryPanel) mobileCategoryPanel.classList.remove('show');
+    }
+
+    if (categoryBtn) categoryBtn.addEventListener('click', openCategoryPanel);
+    if (mobileCategoryClose) mobileCategoryClose.addEventListener('click', closeCategoryPanel);
+    if (mobileCategoryOverlay) mobileCategoryOverlay.addEventListener('click', closeCategoryPanel);
 });

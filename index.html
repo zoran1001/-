@@ -150,6 +150,10 @@
 
                 <!-- 右侧：工具按钮组 -->
                 <div class="topbar-right">
+                    <button class="topbar-icon-btn" id="categoryBtn" type="button" title="颜色分类">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="2" r="1" fill="currentColor"/><circle cx="12" cy="22" r="1" fill="currentColor"/><circle cx="2" cy="12" r="1" fill="currentColor"/><circle cx="22" cy="12" r="1" fill="currentColor"/></svg>
+                        <span>分类</span>
+                    </button>
                     <button class="topbar-icon-btn" id="refreshBtn" type="button" title="刷新同步">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                         <span>刷新</span>
@@ -246,6 +250,20 @@
             </button>
         </div>
     </nav>
+
+    <!-- ===== 移动端分类选择面板 ===== -->
+    <div class="mobile-category-panel" id="mobileCategoryPanel">
+        <div class="mobile-category-overlay" id="mobileCategoryOverlay"></div>
+        <div class="mobile-category-sheet">
+            <div class="mobile-category-header">
+                <h3>颜色分类</h3>
+                <button class="mobile-category-close" id="mobileCategoryClose" type="button">&times;</button>
+            </div>
+            <div class="mobile-category-list" id="mobileCategoryList">
+                <!-- 动态生成分类按钮 -->
+            </div>
+        </div>
+    </div>
 
     <!-- ===== 色卡弹窗 ===== -->
     <div class="modal" id="addCardModal" role="dialog" aria-modal="true">
