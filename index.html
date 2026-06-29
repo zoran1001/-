@@ -16,7 +16,7 @@
     <link rel="dns-prefetch" href="https://api.ocr.space">
     <link rel="dns-prefetch" href="https://api.deepseek.com">
     <title>色卡管理工具</title>
-    <link rel="stylesheet" href="style.css?v=1.6.4">
+    <link rel="stylesheet" href="style.css?v=1.6.5">
 </head>
 <body>
     <!-- ===== 应用整体布局 ===== -->
@@ -572,7 +572,7 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-            <div class="app-version">色卡管理工具 v1.6.4</div>
+            <div class="app-version">色卡管理工具 v1.6.5</div>
         </div>
     </div>
 
@@ -803,15 +803,26 @@
     <!-- ===== Toast 通知容器 ===== -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="supabase.js?v=1.6.4" defer></script>
-    <script src="script.js?v=1.6.4" defer></script>
+    <script src="supabase.js?v=1.6.5" defer></script>
+    <script src="script.js?v=1.6.5" defer></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
+                navigator.serviceWorker.register('./sw.js?v=1.6.5')
                     .then(registration => {
                         console.log('[PWA] Service Worker registered:', registration.scope);
+                        // 检测 SW 更新，有新版本时自动刷新页面
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('[PWA] New SW installing...');
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('[PWA] New SW ready, reloading...');
+                                    window.location.reload();
+                                }
+                            });
+                        });
                     })
                     .catch(error => {
                         console.error('[PWA] Service Worker registration failed:', error);
