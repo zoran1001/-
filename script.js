@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.1';
+const CURRENT_VERSION = '2.2';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -3752,6 +3752,30 @@ class CardManager {
         if (!parsedInfo.chineseName && !parsedInfo.englishName && parsedInfo.category) {
             parsedInfo.englishName = parsedInfo.category.charAt(0).toUpperCase() + parsedInfo.category.slice(1);
             parsedInfo.chineseName = this._colorENtoCN[parsedInfo.category] || parsedInfo.englishName;
+        }
+
+        // 6. 兜底：从原始 OCR 文本提取厂商、材料、色号（LLM 可能遗漏）
+        if (!parsedInfo.manufacturer) {
+            const detected = this._detectManufacturer(rawText);
+            if (detected) {
+                log('[PostProcess] 兜底提取产商:', detected);
+                parsedInfo.manufacturer = detected;
+            }
+        }
+        if (!parsedInfo.material) {
+            const { material, variant } = this._splitMaterialVariant(rawText);
+            if (material) {
+                log('[PostProcess] 兜底提取材料:', material, variant ? '+色号:' + variant : '');
+                parsedInfo.material = material;
+                if (!parsedInfo.variant && variant) parsedInfo.variant = variant;
+            }
+        }
+        if (!parsedInfo.variant) {
+            const variantMatch = rawText.match(/\b(Lite|Matte|Silk|Pro|Plus|Speed|High Speed|HS)\b/i);
+            if (variantMatch) {
+                log('[PostProcess] 兜底提取色号:', variantMatch[1]);
+                parsedInfo.variant = variantMatch[1];
+            }
         }
 
         return parsedInfo;
