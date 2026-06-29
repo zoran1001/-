@@ -3571,6 +3571,14 @@ input:checked + .toggle-slider:before {
     flex-shrink: 0;
 }
 
+.batch-result-detail {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    opacity: 0.85;
+}
+
 .batch-add-more-btn {
     display: block;
     margin: 8px auto;

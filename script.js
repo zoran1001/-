@@ -2992,7 +2992,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(matchedCard.id, matchedCard.chineseName, oldQty, matchedCard.quantity, 'scan');
-            return { type: 'update', name: matchedCard.chineseName, qty: matchedCard.quantity };
+            return { type: 'update', name: matchedCard.chineseName, qty: matchedCard.quantity, manufacturer, material, variant };
         } else {
             const newCard = {
                 id: Date.now() + Math.floor(Math.random() * 100000),
@@ -3013,7 +3013,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
-            return { type: 'new', name: chineseName };
+            return { type: 'new', name: chineseName, manufacturer, material, variant };
         }
     }
 
@@ -3090,13 +3090,21 @@ class CardManager {
         const listEl = document.getElementById('batchResultList');
         listEl.innerHTML = this._batchResults.map(r => {
             if (r.success) {
-                const label = r.info.type === 'new' ? '新增' : '更新库存→' + r.info.qty;
-                return '<div class="batch-result-item success"><span class="batch-result-icon">✓</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + r.info.name + ' (' + label + ')</span></div>';
+                const info = r.info;
+                const label = info.type === 'new' ? '新增' : '更新库存→' + info.qty;
+                // 构建详情行：产商 / 材料 / 材质
+                const details = [];
+                if (info.manufacturer) details.push(info.manufacturer);
+                if (info.material) details.push(info.material);
+                if (info.variant) details.push(info.variant);
+                const detailStr = details.length > 0 ? '<span class="batch-result-detail">' + details.join(' / ') + '</span>' : '';
+                return '<div class="batch-result-item success"><span class="batch-result-icon">✓</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + info.name + ' (' + label + ')</span>' + detailStr + '</div>';
             } else {
                 return '<div class="batch-result-item fail"><span class="batch-result-icon">✗</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + r.error + '</span></div>';
             }
         }).join('');
 
+        this._lastRenderedKey = null; // 强制重新渲染卡片
         this.renderCards();
         this.checkLowStock();
     }
@@ -3927,8 +3935,12 @@ class CardManager {
     }
 
     renderCards(cards = this.cards) {
-        // Generate cache key to detect changes
-        const cacheKey = `${cards.length}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
+        // Generate cache key - include card data checksum to detect content changes
+        let dataHash = 0;
+        for (let i = 0; i < cards.length; i++) {
+            dataHash = ((dataHash << 5) - dataHash + cards[i].id + (cards[i].quantity || 0)) | 0;
+        }
+        const cacheKey = `${cards.length}-${dataHash}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
         if (this._lastRenderedKey === cacheKey && cards.length > 0) {
             return; // Skip re-render if nothing changed
         }
