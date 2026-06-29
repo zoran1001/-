@@ -3408,3 +3408,64 @@ input:checked + .toggle-slider:before {
 .form-qty-btn.form-qty-dec:active {
     background: rgba(239, 68, 68, 0.1);
 }
+
+/* ===== 代理设置面板 ===== */
+.proxy-section {
+    padding: 8px 0;
+}
+
+.proxy-hint {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+.proxy-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.proxy-input-row input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-family: var(--font-sans);
+    min-width: 0;
+}
+
+.proxy-input-row input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.proxy-input-row input::placeholder {
+    color: var(--text-muted);
+}
+
+.proxy-status {
+    font-size: 0.82rem;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    display: none;
+}
+
+.proxy-status.success {
+    display: block;
+    background: rgba(16, 185, 129, 0.08);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.proxy-example {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}

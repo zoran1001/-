@@ -557,6 +557,7 @@
             <div class="admin-tabs">
                 <button class="admin-tab active" data-tab="materials" type="button">材料管理</button>
                 <button class="admin-tab" data-tab="manufacturers" type="button">产商管理</button>
+                <button class="admin-tab" data-tab="proxy" type="button">代理设置</button>
             </div>
             <div class="admin-panel" id="materialsPanel">
                 <div class="admin-add-row">
@@ -572,7 +573,18 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-            <div class="app-version">色卡管理工具 v1.4.0</div>
+            <div class="admin-panel" id="proxyPanel" style="display:none;">
+                <div class="proxy-section">
+                    <p class="proxy-hint">设置代理服务器地址，所有云端请求将通过代理转发。留空则直连。适用于无VPN环境。</p>
+                    <div class="proxy-input-row">
+                        <input type="url" id="proxyUrlInput" placeholder="https://your-proxy.com/proxy?url=">
+                        <button type="button" class="admin-add-btn" id="saveProxyBtn">保存</button>
+                    </div>
+                    <div class="proxy-status" id="proxyStatus"></div>
+                    <p class="proxy-example">示例：https://corsproxy.io/? 或自建反向代理地址</p>
+                </div>
+            </div>
+            <div class="app-version">色卡管理工具 v1.5.0</div>
         </div>
     </div>
 

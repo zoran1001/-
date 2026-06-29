@@ -163,9 +163,18 @@ function withTimeout(promise, ms, context) {
 
 try {
     if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
-        });
+        const proxyUrl = localStorage.getItem('proxyUrl') || '';
+        const clientOpts = { auth: { persistSession: false, autoRefreshToken: false } };
+        if (proxyUrl) {
+            clientOpts.fetch = (url, opts = {}) => {
+                const targetUrl = typeof url === 'string' ? url : url.toString();
+                const proxiedUrl = proxyUrl + encodeURIComponent(targetUrl);
+                log('[Proxy]', targetUrl.substring(0, 60) + '...');
+                return fetch(proxiedUrl, opts);
+            };
+            log('Supabase 代理模式: ' + proxyUrl);
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, clientOpts);
         log('Supabase 初始化成功');
     }
 } catch (e) {
@@ -1609,7 +1618,27 @@ class CardManager {
                 const tabName = tab.getAttribute('data-tab');
                 document.getElementById('materialsPanel').style.display = tabName === 'materials' ? 'block' : 'none';
                 document.getElementById('manufacturersPanel').style.display = tabName === 'manufacturers' ? 'block' : 'none';
+                document.getElementById('proxyPanel').style.display = tabName === 'proxy' ? 'block' : 'none';
+                // 加载当前代理设置
+                if (tabName === 'proxy') {
+                    const proxyInput = document.getElementById('proxyUrlInput');
+                    if (proxyInput) proxyInput.value = localStorage.getItem('proxyUrl') || '';
+                }
             });
+        });
+
+        // 代理设置保存
+        document.getElementById('saveProxyBtn').addEventListener('click', () => {
+            const proxyUrl = document.getElementById('proxyUrlInput').value.trim();
+            localStorage.setItem('proxyUrl', proxyUrl);
+            const statusEl = document.getElementById('proxyStatus');
+            if (proxyUrl) {
+                statusEl.textContent = '代理已设置，刷新页面后生效';
+                statusEl.className = 'proxy-status success';
+            } else {
+                statusEl.textContent = '已清除代理，将直连Supabase';
+                statusEl.className = 'proxy-status success';
+            }
         });
 
         // Admin add buttons
