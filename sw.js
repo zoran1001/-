@@ -1,5 +1,5 @@
 // Service Worker for PWA - 色卡管理工具
-const CACHE_NAME = 'color-cards-v11';
+const CACHE_NAME = 'color-cards-v12';
 const STATIC_ASSETS = [
   './manifest.json'
 ];

@@ -1638,6 +1638,7 @@ class CardManager {
         document.getElementById('closeScanModalBtn').addEventListener('click', () => this.closeScanModal());
         document.getElementById('scanUploadArea').addEventListener('click', () => document.getElementById('scanImageUpload').click());
         document.getElementById('scanImageUpload').addEventListener('change', (e) => this.handleScanImageUpload(e));
+        document.getElementById('scanUploadBtn').addEventListener('click', () => document.getElementById('scanImageUpload').click());
         document.getElementById('scanStartBtn').addEventListener('click', () => this.startOCR());
         document.getElementById('scanConfirmBtn').addEventListener('click', () => this.confirmScanResult());
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
