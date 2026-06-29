@@ -2633,7 +2633,8 @@ class CardManager {
     }
 
     async startOCR() {
-        if (this._isBatchMode && this._batchQueue.length > 0) {
+        console.log('[startOCR] _isBatchMode:', this._isBatchMode, '_batchQueue.length:', this._batchQueue ? this._batchQueue.length : 'undefined', 'scanImageData:', !!this.scanImageData);
+        if (this._isBatchMode && this._batchQueue && this._batchQueue.length > 0) {
             await this._startBatchOCR();
             return;
         }
