@@ -1,8 +1,6 @@
 // Service Worker for PWA - 色卡管理工具
-const CACHE_NAME = 'color-cards-v8';
+const CACHE_NAME = 'color-cards-v10';
 const STATIC_ASSETS = [
-  './',
-  './index.html',
   './manifest.json'
 ];
 
@@ -181,3 +179,10 @@ async function syncUpdateCard(card) {
 async function syncDeleteCard(id) {
   console.log('[SW] Syncing delete card:', id);
 }
+
+// 响应页面的版本检查请求
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.source.postMessage({ type: 'SW_VERSION', version: CACHE_NAME });
+  }
+});
