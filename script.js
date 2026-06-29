@@ -2623,12 +2623,34 @@ class CardManager {
                 reader.onload = (e) => this.compressImage(e.target.result, 1200, 0.8).then(resolve);
                 reader.readAsDataURL(file);
             });
+            const idx = this._batchQueue.length;
             this._batchQueue.push({ name: file.name, data: compressed });
             const thumb = document.createElement('div');
             thumb.className = 'batch-thumb-item';
-            thumb.innerHTML = '<img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
+            thumb.innerHTML = '<button class="batch-thumb-delete" data-idx="' + idx + '" title="删除">&times;</button><img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
             listEl.appendChild(thumb);
         }
+
+        // 绑定删除按钮事件
+        listEl.querySelectorAll('.batch-thumb-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.idx, 10);
+                if (isNaN(idx) || idx < 0 || idx >= this._batchQueue.length) return;
+                this._batchQueue.splice(idx, 1);
+                btn.closest('.batch-thumb-item').remove();
+                // 重新索引剩余缩略图
+                listEl.querySelectorAll('.batch-thumb-delete').forEach((b, i) => {
+                    b.dataset.idx = i;
+                });
+                if (this._batchQueue.length === 0) {
+                    document.getElementById('scanStartBtn').disabled = true;
+                    listEl.style.display = 'none';
+                    document.getElementById('scanUploadContent').style.display = '';
+                    document.getElementById('batchAddMoreBtn').style.display = 'none';
+                }
+            });
+        });
         document.getElementById('scanStartBtn').disabled = false;
     }
 

@@ -16,7 +16,7 @@
     <link rel="dns-prefetch" href="https://api.ocr.space">
     <link rel="dns-prefetch" href="https://api.deepseek.com">
     <title>色卡管理工具</title>
-    <link rel="stylesheet" href="style.css?v=1.6.6">
+    <link rel="stylesheet" href="style.css?v=1.6.7">
 </head>
 <body>
     <!-- ===== 应用整体布局 ===== -->
@@ -572,7 +572,7 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-            <div class="app-version">色卡管理工具 v1.6.6</div>
+            <div class="app-version">色卡管理工具 v1.6.7</div>
         </div>
     </div>
 
@@ -803,20 +803,26 @@
     <!-- ===== Toast 通知容器 ===== -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="supabase.js?v=1.6.6" defer></script>
-    <script src="script.js?v=1.6.6" defer></script>
+    <script src="supabase.js?v=1.6.7" defer></script>
+    <script src="script.js?v=1.6.7" defer></script>
     <script>
-        // PWA Service Worker - 强制版本检查
+        // PWA Service Worker - controllerchange 强制刷新
         (function() {
-            var EXPECTED_SW = 'color-cards-v10';
+            var EXPECTED_SW = 'color-cards-v11';
             if (!('serviceWorker' in navigator)) return;
 
-            function checkSWVersion(reg) {
-                if (!reg.active) return;
-                // 通过 postMessage 询问 SW 当前缓存版本
-                reg.active.postMessage({ type: 'GET_VERSION' });
-            }
+            // 关键：SW 切换控制器时强制刷新页面
+            // skipWaiting() 会跳过 installed 状态，updatefound 监听器无效
+            // controllerchange 是唯一可靠的方式
+            var refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', function() {
+                if (refreshing) return;
+                refreshing = true;
+                console.log('[PWA] SW controller changed, reloading...');
+                window.location.reload();
+            });
 
+            // 备用：postMessage 版本检查（针对 SW 已激活但页面是旧版的情况）
             navigator.serviceWorker.addEventListener('message', function(event) {
                 if (event.data && event.data.type === 'SW_VERSION' && event.data.version !== EXPECTED_SW) {
                     console.log('[PWA] SW version mismatch:', event.data.version, 'expected:', EXPECTED_SW);
@@ -830,22 +836,15 @@
             });
 
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js?v=1.6.6')
+                navigator.serviceWorker.register('./sw.js?v=1.6.7')
                     .then(function(registration) {
                         console.log('[PWA] Service Worker registered:', registration.scope);
-                        // 检测 SW 更新
-                        registration.addEventListener('updatefound', function() {
-                            var newWorker = registration.installing;
-                            console.log('[PWA] New SW installing...');
-                            newWorker.addEventListener('statechange', function() {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('[PWA] New SW ready, reloading...');
-                                    window.location.reload();
-                                }
-                            });
-                        });
                         // 页面加载后检查版本
-                        setTimeout(function() { checkSWVersion(registration); }, 1000);
+                        setTimeout(function() {
+                            if (registration.active) {
+                                registration.active.postMessage({ type: 'GET_VERSION' });
+                            }
+                        }, 1000);
                     })
                     .catch(function(error) {
                         console.error('[PWA] Service Worker registration failed:', error);
