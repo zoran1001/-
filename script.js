@@ -1643,6 +1643,7 @@ class CardManager {
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
         document.getElementById('batchDoneBtn').addEventListener('click', () => this.closeScanModal());
         document.getElementById('batchRetryBtn').addEventListener('click', () => this.resetScanModal());
+        document.getElementById('batchAddMoreBtn').addEventListener('click', () => document.getElementById('scanImageUpload').click());
 
         // 点击外部关闭扫描模态框
         bindModalClose('scanModal', () => this.closeScanModal());
@@ -2585,6 +2586,7 @@ class CardManager {
         document.getElementById('scanImageUpload').value = '';
         document.getElementById('batchFileList').style.display = 'none';
         document.getElementById('batchFileList').innerHTML = '';
+        document.getElementById('batchAddMoreBtn').style.display = 'none';
         document.getElementById('batchResultSummary').style.display = 'none';
         this.scanImageData = null;
         this.scanOCRResult = null;
@@ -2601,39 +2603,19 @@ class CardManager {
 
     async _handleBatchFiles(files) {
         const listEl = document.getElementById('batchFileList');
-        const hasExisting = this._batchQueue && this._batchQueue.length > 0;
+        const isFirstBatch = !this._batchQueue || this._batchQueue.length === 0;
 
-        // 如果已有文件，切换到批量模式并追加
-        if (hasExisting) {
-            this._isBatchMode = true;
-        } else if (files.length === 1) {
-            // 首次拖放单图：单图模式，但也初始化队列
-            this._isBatchMode = false;
-            this._batchQueue = [];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                this.compressImage(event.target.result, 1200, 0.8).then(compressed => {
-                    this.scanImageData = compressed;
-                    // 同时加入队列，方便后续追加
-                    this._batchQueue.push({ name: files[0].name, data: compressed });
-                    listEl.style.display = 'flex';
-                    listEl.innerHTML = '<div class="batch-thumb-item"><img src="' + compressed + '"><span class="batch-thumb-name">' + files[0].name + '</span></div>';
-                    document.getElementById('scanUploadContent').style.display = 'none';
-                    document.getElementById('scanStartBtn').disabled = false;
-                });
-            };
-            reader.readAsDataURL(files[0]);
-            return;
-        } else {
-            // 首次拖放多图：批量模式
-            this._isBatchMode = true;
+        if (isFirstBatch) {
             this._batchQueue = [];
             listEl.innerHTML = '';
         }
+        // 统一使用批量模式
+        this._isBatchMode = true;
 
-        // 批量模式：处理并追加文件
+        // 显示缩略图区域，隐藏上传提示
         listEl.style.display = 'flex';
         document.getElementById('scanUploadContent').style.display = 'none';
+        document.getElementById('batchAddMoreBtn').style.display = 'inline-block';
 
         for (const file of files) {
             const compressed = await new Promise(resolve => {
@@ -2651,12 +2633,12 @@ class CardManager {
     }
 
     async startOCR() {
-        if (this._isBatchMode && this._batchQueue.length > 1) {
+        if (this._isBatchMode && this._batchQueue.length > 0) {
             await this._startBatchOCR();
             return;
         }
 
-        // 单图模式
+        // 兜底：单图模式（兼容旧逻辑）
         if (!this.scanImageData) {
             alert('请先上传图片！');
             return;

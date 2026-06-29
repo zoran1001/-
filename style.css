@@ -3541,3 +3541,22 @@ input:checked + .toggle-slider:before {
     color: var(--text-secondary);
     flex-shrink: 0;
 }
+
+.batch-add-more-btn {
+    display: block;
+    margin: 8px auto;
+    padding: 8px 20px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px dashed var(--border-default);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.batch-add-more-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
