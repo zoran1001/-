@@ -1,5 +1,5 @@
 // Service Worker for PWA - 色卡管理工具
-const CACHE_NAME = 'color-cards-v6';
+const CACHE_NAME = 'color-cards-v7';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -46,8 +46,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 脚本和样式文件不缓存，始终从网络获取最新版本
-  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+  // 脚本、样式和 HTML 文件不缓存，始终从网络获取最新版本
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
     event.respondWith(fetch(request));
     return;
   }
