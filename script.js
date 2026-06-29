@@ -149,10 +149,23 @@ const SUPABASE_URL = 'https://xgalutaglwryurdmwbpl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnYWx1dGFnbHdyeXVyZG13YnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTM3MTksImV4cCI6MjA5NzgyOTcxOX0.CfJ5kjGHI2_np7nUfl8O12-xBC2T8mj_xsEl-fG_NJc';
 
 let supabaseClient = null;
+let cloudUnreachable = false; // 云端不可达时跳过所有云操作
+const CLOUD_TIMEOUT = 8000; // 云端请求超时 8 秒
+
+// 带超时的 Promise 包装
+function withTimeout(promise, ms, context) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(context + ' 超时 (' + ms + 'ms)')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 try {
     if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false }
+        });
         log('Supabase 初始化成功');
     }
 } catch (e) {
@@ -194,7 +207,7 @@ function keysToCamel(obj) {
 
 const CloudStorage = {
     isAvailable() {
-        return supabaseClient !== null;
+        return supabaseClient !== null && !cloudUnreachable;
     },
 
     setStatus(status, text) {
@@ -217,14 +230,15 @@ const CloudStorage = {
     async loadCards() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabaseClient
-                .from('cards')
-                .select('*')
-                .order('id');
+            const { data, error } = await withTimeout(
+                supabaseClient.from('cards').select('*').order('id'),
+                CLOUD_TIMEOUT, '加载色卡'
+            );
             if (error) throw error;
             return data ? data.map(keysToCamel) : [];
         } catch (e) {
             warn('从云端加载色卡失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return null;
         }
     },
@@ -232,9 +246,8 @@ const CloudStorage = {
     async saveCards(cards) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('cards')
-                .upsert(cards.map(card => keysToSnake({
+            const { error } = await withTimeout(
+                supabaseClient.from('cards').upsert(cards.map(card => keysToSnake({
                     id: card.id,
                     category: card.category,
                     manufacturer: card.manufacturer,
@@ -248,11 +261,14 @@ const CloudStorage = {
                     color: card.color,
                     notes: card.notes || '',
                     sortOrder: card.sortOrder || 0
-                })));
+                }))),
+                CLOUD_TIMEOUT, '保存色卡'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('保存色卡到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -260,27 +276,20 @@ const CloudStorage = {
     async addCard(card) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('cards')
-                .insert(keysToSnake({
-                    id: card.id,
-                    category: card.category,
-                    manufacturer: card.manufacturer,
-                    englishName: card.englishName,
-                    material: card.material,
-                    variant: card.variant || '',
-                    image: card.image,
-                    chineseName: card.chineseName,
-                    config: card.config,
-                    quantity: card.quantity,
-                    color: card.color,
-                    notes: card.notes || '',
-                    sortOrder: card.sortOrder || 0
-                }));
+            const { error } = await withTimeout(
+                supabaseClient.from('cards').insert(keysToSnake({
+                    id: card.id, category: card.category, manufacturer: card.manufacturer,
+                    englishName: card.englishName, material: card.material, variant: card.variant || '',
+                    image: card.image, chineseName: card.chineseName, config: card.config,
+                    quantity: card.quantity, color: card.color, notes: card.notes || '', sortOrder: card.sortOrder || 0
+                })),
+                CLOUD_TIMEOUT, '添加色卡'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('添加色卡到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -288,27 +297,20 @@ const CloudStorage = {
     async updateCard(card) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('cards')
-                .update(keysToSnake({
-                    category: card.category,
-                    manufacturer: card.manufacturer,
-                    englishName: card.englishName,
-                    material: card.material,
-                    variant: card.variant || '',
-                    image: card.image,
-                    chineseName: card.chineseName,
-                    config: card.config,
-                    quantity: card.quantity,
-                    color: card.color,
-                    notes: card.notes || '',
-                    sortOrder: card.sortOrder || 0
-                }))
-                .eq('id', card.id);
+            const { error } = await withTimeout(
+                supabaseClient.from('cards').update(keysToSnake({
+                    category: card.category, manufacturer: card.manufacturer,
+                    englishName: card.englishName, material: card.material, variant: card.variant || '',
+                    image: card.image, chineseName: card.chineseName, config: card.config,
+                    quantity: card.quantity, color: card.color, notes: card.notes || '', sortOrder: card.sortOrder || 0
+                })).eq('id', card.id),
+                CLOUD_TIMEOUT, '更新色卡'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('更新云端色卡失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -316,14 +318,15 @@ const CloudStorage = {
     async deleteCard(cardId) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('cards')
-                .delete()
-                .eq('id', cardId);
+            const { error } = await withTimeout(
+                supabaseClient.from('cards').delete().eq('id', cardId),
+                CLOUD_TIMEOUT, '删除色卡'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('删除云端色卡失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -331,14 +334,15 @@ const CloudStorage = {
     async loadMaterials() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabaseClient
-                .from('materials')
-                .select('name')
-                .order('name');
+            const { data, error } = await withTimeout(
+                supabaseClient.from('materials').select('name').order('name'),
+                CLOUD_TIMEOUT, '加载材料'
+            );
             if (error) throw error;
             return data ? data.map(item => item.name) : [];
         } catch (e) {
             warn('从云端加载材料失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return null;
         }
     },
@@ -346,13 +350,15 @@ const CloudStorage = {
     async addMaterial(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('materials')
-                .insert({ name });
+            const { error } = await withTimeout(
+                supabaseClient.from('materials').insert({ name }),
+                CLOUD_TIMEOUT, '添加材料'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('添加材料到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -360,14 +366,15 @@ const CloudStorage = {
     async deleteMaterial(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('materials')
-                .delete()
-                .eq('name', name);
+            const { error } = await withTimeout(
+                supabaseClient.from('materials').delete().eq('name', name),
+                CLOUD_TIMEOUT, '删除材料'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('删除云端材料失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -375,14 +382,15 @@ const CloudStorage = {
     async loadManufacturers() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabaseClient
-                .from('manufacturers')
-                .select('name')
-                .order('name');
+            const { data, error } = await withTimeout(
+                supabaseClient.from('manufacturers').select('name').order('name'),
+                CLOUD_TIMEOUT, '加载产商'
+            );
             if (error) throw error;
             return data ? data.map(item => item.name) : [];
         } catch (e) {
             warn('从云端加载产商失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return null;
         }
     },
@@ -390,13 +398,15 @@ const CloudStorage = {
     async addManufacturer(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('manufacturers')
-                .insert({ name });
+            const { error } = await withTimeout(
+                supabaseClient.from('manufacturers').insert({ name }),
+                CLOUD_TIMEOUT, '添加产商'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
             warn('添加产商到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -404,10 +414,10 @@ const CloudStorage = {
     async deleteManufacturer(name) {
         if (!this.isAvailable()) return false;
         try {
-            const { error } = await supabaseClient
-                .from('manufacturers')
-                .delete()
-                .eq('name', name);
+            const { error } = await withTimeout(
+                supabaseClient.from('manufacturers').delete().eq('name', name),
+                CLOUD_TIMEOUT, '删除产商'
+            );
             if (error) throw error;
             return true;
         } catch (e) {
@@ -419,13 +429,14 @@ const CloudStorage = {
     async saveMaterials(materials) {
         if (!this.isAvailable()) return false;
         try {
-            await supabaseClient.from('materials').delete().neq('name', '');
+            await withTimeout(supabaseClient.from('materials').delete().neq('name', ''), CLOUD_TIMEOUT, '同步材料');
             const rows = materials.map(name => ({ name }));
-            const { error } = await supabaseClient.from('materials').insert(rows);
+            const { error } = await withTimeout(supabaseClient.from('materials').insert(rows), CLOUD_TIMEOUT, '同步材料');
             if (error) throw error;
             return true;
         } catch (e) {
             warn('同步材料到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -433,13 +444,14 @@ const CloudStorage = {
     async saveManufacturers(manufacturers) {
         if (!this.isAvailable()) return false;
         try {
-            await supabaseClient.from('manufacturers').delete().neq('name', '');
+            await withTimeout(supabaseClient.from('manufacturers').delete().neq('name', ''), CLOUD_TIMEOUT, '同步产商');
             const rows = manufacturers.map(name => ({ name }));
-            const { error } = await supabaseClient.from('manufacturers').insert(rows);
+            const { error } = await withTimeout(supabaseClient.from('manufacturers').insert(rows), CLOUD_TIMEOUT, '同步产商');
             if (error) throw error;
             return true;
         } catch (e) {
             warn('同步产商到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     },
@@ -447,18 +459,18 @@ const CloudStorage = {
     async loadTemplate() {
         if (!this.isAvailable()) return null;
         try {
-            const { data, error } = await supabaseClient
-                .from('template')
-                .select('*')
-                .single();
+            const { data, error } = await withTimeout(
+                supabaseClient.from('template').select('*').single(),
+                CLOUD_TIMEOUT, '加载模板'
+            );
             if (error) {
-                // PGRST116 = no rows found, 406 = not acceptable (table empty or query issue)
                 if (error.code === 'PGRST116' || error.status === 406) return null;
                 throw error;
             }
             return data;
         } catch (e) {
             warn('从云端加载模板失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return null;
         }
     },
@@ -468,19 +480,16 @@ const CloudStorage = {
         try {
             const existing = await this.loadTemplate();
             if (existing && existing.id) {
-                const { error } = await supabaseClient
-                    .from('template')
-                    .update({
-                        manufacturer: template.manufacturer,
-                        material: template.material,
-                        config: template.config
-                    })
-                    .eq('id', existing.id);
+                const { error } = await withTimeout(
+                    supabaseClient.from('template').update({
+                        manufacturer: template.manufacturer, material: template.material, config: template.config
+                    }).eq('id', existing.id),
+                    CLOUD_TIMEOUT, '保存模板'
+                );
                 if (error) throw error;
             } else {
-                const { error } = await supabaseClient
-                    .from('template')
-                    .insert({
+                const { error } = await withTimeout(
+                    supabaseClient.from('template').insert({
                         manufacturer: template.manufacturer,
                         material: template.material,
                         config: template.config
@@ -490,6 +499,7 @@ const CloudStorage = {
             return true;
         } catch (e) {
             warn('保存模板到云端失败', e);
+            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
             return false;
         }
     }
