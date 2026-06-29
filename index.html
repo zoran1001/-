@@ -16,7 +16,7 @@
     <link rel="dns-prefetch" href="https://api.ocr.space">
     <link rel="dns-prefetch" href="https://api.deepseek.com">
     <title>色卡管理工具</title>
-    <link rel="stylesheet" href="style.css?v=1.6.8">
+    <link rel="stylesheet" href="style.css?v=1.6.9">
 </head>
 <body>
     <!-- ===== 应用整体布局 ===== -->
@@ -593,13 +593,11 @@
                     </svg>
                     <p>点击或拖拽图片到此处</p>
                     <span class="scan-upload-hint">支持多选，JPG、PNG、BMP 格式</span>
-                    <button type="button" class="scan-upload-btn" id="scanUploadBtn">选择图片</button>
                 </div>
             </div>
 
             <!-- 批量文件列表 -->
             <div class="batch-file-list" id="batchFileList" style="display:none;"></div>
-            <button type="button" class="batch-add-more-btn" id="batchAddMoreBtn" style="display:none;">+ 继续添加图片</button>
 
             <!-- 批量进度 -->
             <div class="scan-progress" id="scanProgress" style="display:none;">
@@ -804,12 +802,12 @@
     <!-- ===== Toast 通知容器 ===== -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="supabase.js?v=1.6.8" defer></script>
-    <script src="script.js?v=1.6.8" defer></script>
+    <script src="supabase.js?v=1.6.9" defer></script>
+    <script src="script.js?v=1.6.9" defer></script>
     <script>
         // PWA Service Worker - controllerchange 强制刷新
         (function() {
-            var EXPECTED_SW = 'color-cards-v12';
+            var EXPECTED_SW = 'color-cards-v13';
             if (!('serviceWorker' in navigator)) return;
 
             // 关键：SW 切换控制器时强制刷新页面
@@ -837,7 +835,7 @@
             });
 
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js?v=1.6.8')
+                navigator.serviceWorker.register('./sw.js?v=1.6.9')
                     .then(function(registration) {
                         console.log('[PWA] Service Worker registered:', registration.scope);
                         // 页面加载后检查版本

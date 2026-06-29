@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.0';
+const CURRENT_VERSION = '2.1';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -55,7 +55,7 @@ const OCR_QUALITY = 0.8;
 const CARD_IMAGE_MAX_SIZE = 800;
 const CARD_IMAGE_QUALITY = 0.85;
 const SEARCH_DEBOUNCE_MS = 300;
-const SYNC_INTERVAL_MS = 10000;
+const SYNC_INTERVAL_MS = 30000; // 30 秒轮询一次
 const DELETE_KEY_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_SEARCH_HISTORY = 10;
 const STOCK_WARNING_DEFAULT_THRESHOLD = 1;
@@ -145,12 +145,52 @@ async function dbClear(storeName) {
 }
 
 // Supabase 云端配置
+// ⚠️ 安全提示：匿名密钥暴露在客户端，必须确保 Supabase 表的 RLS (Row Level Security) 已正确配置
+// 请在 Supabase Dashboard 中验证以下表的 RLS 策略：
+// - cards: 允许匿名用户读写
+// - materials: 允许匿名用户读写
+// - manufacturers: 允许匿名用户读写
+// - template: 允许匿名用户读写
+// 如果 RLS 未启用或配置不当，任何人可通过浏览器开发者工具获取完整数据库访问权限
 const SUPABASE_URL = 'https://xgalutaglwryurdmwbpl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnYWx1dGFnbHdyeXVyZG13YnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTM3MTksImV4cCI6MjA5NzgyOTcxOX0.CfJ5kjGHI2_np7nUfl8O12-xBC2T8mj_xsEl-fG_NJc';
 
 let supabaseClient = null;
 let cloudUnreachable = false; // 云端不可达时跳过所有云操作
+let cloudRetryTimer = null; // 云端重试定时器
 const CLOUD_TIMEOUT = 8000; // 云端请求超时 8 秒
+const CLOUD_RETRY_DELAY = 30000; // 云端不可达后 30 秒自动重试
+
+// 重置云端可达状态（成功请求后调用）
+function resetCloudReachable() {
+    if (cloudUnreachable) {
+        cloudUnreachable = false;
+        if (cloudRetryTimer) {
+            clearTimeout(cloudRetryTimer);
+            cloudRetryTimer = null;
+        }
+        log('[Cloud] 云端连接已恢复');
+    }
+}
+
+// 标记云端不可达（超时后调用）
+function markCloudUnreachable() {
+    if (!cloudUnreachable) {
+        cloudUnreachable = true;
+        warn('[Cloud] 云端连接超时，将在 ' + (CLOUD_RETRY_DELAY / 1000) + ' 秒后自动重试');
+        // 设置自动重试定时器
+        if (cloudRetryTimer) clearTimeout(cloudRetryTimer);
+        cloudRetryTimer = setTimeout(() => {
+            cloudUnreachable = false;
+            cloudRetryTimer = null;
+            log('[Cloud] 自动重试云端连接');
+            // 触发一次同步检测
+            if (window.cardManager && window.cardManager.cloudSyncCompleted) {
+                window.cardManager.loadFromCloud().catch(() => {});
+            }
+        }, CLOUD_RETRY_DELAY);
+    }
+}
 
 // 带超时的 Promise 包装
 function withTimeout(promise, ms, context) {
@@ -235,10 +275,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '加载色卡'
             );
             if (error) throw error;
+            resetCloudReachable();
             return data ? data.map(keysToCamel) : [];
         } catch (e) {
             warn('从云端加载色卡失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return null;
         }
     },
@@ -265,10 +306,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '保存色卡'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('保存色卡到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -286,10 +328,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '添加色卡'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('添加色卡到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -307,10 +350,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '更新色卡'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('更新云端色卡失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -323,10 +367,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '删除色卡'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('删除云端色卡失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -339,10 +384,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '加载材料'
             );
             if (error) throw error;
+            resetCloudReachable();
             return data ? data.map(item => item.name) : [];
         } catch (e) {
             warn('从云端加载材料失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return null;
         }
     },
@@ -355,10 +401,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '添加材料'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('添加材料到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -371,10 +418,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '删除材料'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('删除云端材料失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -387,10 +435,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '加载产商'
             );
             if (error) throw error;
+            resetCloudReachable();
             return data ? data.map(item => item.name) : [];
         } catch (e) {
             warn('从云端加载产商失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return null;
         }
     },
@@ -403,10 +452,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '添加产商'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('添加产商到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -419,9 +469,11 @@ const CloudStorage = {
                 CLOUD_TIMEOUT, '删除产商'
             );
             if (error) throw error;
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('删除云端产商失败', e);
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -429,14 +481,44 @@ const CloudStorage = {
     async saveMaterials(materials) {
         if (!this.isAvailable()) return false;
         try {
-            await withTimeout(supabaseClient.from('materials').delete().neq('name', ''), CLOUD_TIMEOUT, '同步材料');
-            const rows = materials.map(name => ({ name }));
-            const { error } = await withTimeout(supabaseClient.from('materials').insert(rows), CLOUD_TIMEOUT, '同步材料');
-            if (error) throw error;
+            // 先获取云端当前数据
+            const { data: currentData, error: loadError } = await withTimeout(
+                supabaseClient.from('materials').select('name'),
+                CLOUD_TIMEOUT, '加载当前材料'
+            );
+            if (loadError) throw loadError;
+            
+            const currentNames = new Set((currentData || []).map(item => item.name));
+            const newNames = new Set(materials);
+            
+            // 计算需要添加和删除的项
+            const toInsert = materials.filter(name => !currentNames.has(name));
+            const toDelete = [...currentNames].filter(name => !newNames.has(name));
+            
+            // 先插入新项（不会丢失旧数据）
+            if (toInsert.length > 0) {
+                const rows = toInsert.map(name => ({ name }));
+                const { error: insertError } = await withTimeout(
+                    supabaseClient.from('materials').insert(rows),
+                    CLOUD_TIMEOUT, '添加新材料'
+                );
+                if (insertError) throw insertError;
+            }
+            
+            // 再删除不再需要的项
+            if (toDelete.length > 0) {
+                const { error: deleteError } = await withTimeout(
+                    supabaseClient.from('materials').delete().in('name', toDelete),
+                    CLOUD_TIMEOUT, '删除旧材料'
+                );
+                if (deleteError) throw deleteError;
+            }
+            
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('同步材料到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -444,14 +526,44 @@ const CloudStorage = {
     async saveManufacturers(manufacturers) {
         if (!this.isAvailable()) return false;
         try {
-            await withTimeout(supabaseClient.from('manufacturers').delete().neq('name', ''), CLOUD_TIMEOUT, '同步产商');
-            const rows = manufacturers.map(name => ({ name }));
-            const { error } = await withTimeout(supabaseClient.from('manufacturers').insert(rows), CLOUD_TIMEOUT, '同步产商');
-            if (error) throw error;
+            // 先获取云端当前数据
+            const { data: currentData, error: loadError } = await withTimeout(
+                supabaseClient.from('manufacturers').select('name'),
+                CLOUD_TIMEOUT, '加载当前产商'
+            );
+            if (loadError) throw loadError;
+            
+            const currentNames = new Set((currentData || []).map(item => item.name));
+            const newNames = new Set(manufacturers);
+            
+            // 计算需要添加和删除的项
+            const toInsert = manufacturers.filter(name => !currentNames.has(name));
+            const toDelete = [...currentNames].filter(name => !newNames.has(name));
+            
+            // 先插入新项（不会丢失旧数据）
+            if (toInsert.length > 0) {
+                const rows = toInsert.map(name => ({ name }));
+                const { error: insertError } = await withTimeout(
+                    supabaseClient.from('manufacturers').insert(rows),
+                    CLOUD_TIMEOUT, '添加新产商'
+                );
+                if (insertError) throw insertError;
+            }
+            
+            // 再删除不再需要的项
+            if (toDelete.length > 0) {
+                const { error: deleteError } = await withTimeout(
+                    supabaseClient.from('manufacturers').delete().in('name', toDelete),
+                    CLOUD_TIMEOUT, '删除旧产'
+                );
+                if (deleteError) throw deleteError;
+            }
+            
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('同步产商到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     },
@@ -467,10 +579,11 @@ const CloudStorage = {
                 if (error.code === 'PGRST116' || error.status === 406) return null;
                 throw error;
             }
+            resetCloudReachable();
             return data;
         } catch (e) {
             warn('从云端加载模板失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return null;
         }
     },
@@ -498,10 +611,11 @@ const CloudStorage = {
                 );
                 if (error) throw error;
             }
+            resetCloudReachable();
             return true;
         } catch (e) {
             warn('保存模板到云端失败', e);
-            if (e.message && e.message.includes('超时')) cloudUnreachable = true;
+            if (e.message && e.message.includes('超时')) markCloudUnreachable();
             return false;
         }
     }
@@ -1489,6 +1603,12 @@ class CardManager {
         this.undoManager = new UndoManager(this);
         this.draggedCardId = null;
         this._lastRenderedKey = null;    // Cache for avoiding unnecessary re-renders
+        
+        // 批量扫描相关状态
+        this._batchQueue = [];           // 待处理图片队列
+        this._batchResults = [];         // 批量处理结果
+        this._isBatchMode = false;       // 是否处于批量模式
+        
         this.bindEvents();
         this.setupDelegatedEvents();
     }
@@ -1638,13 +1758,11 @@ class CardManager {
         document.getElementById('closeScanModalBtn').addEventListener('click', () => this.closeScanModal());
         document.getElementById('scanUploadArea').addEventListener('click', () => document.getElementById('scanImageUpload').click());
         document.getElementById('scanImageUpload').addEventListener('change', (e) => this.handleScanImageUpload(e));
-        document.getElementById('scanUploadBtn').addEventListener('click', () => document.getElementById('scanImageUpload').click());
         document.getElementById('scanStartBtn').addEventListener('click', () => this.startOCR());
         document.getElementById('scanConfirmBtn').addEventListener('click', () => this.confirmScanResult());
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
         document.getElementById('batchDoneBtn').addEventListener('click', () => this.closeScanModal());
         document.getElementById('batchRetryBtn').addEventListener('click', () => this.resetScanModal());
-        document.getElementById('batchAddMoreBtn').addEventListener('click', () => document.getElementById('scanImageUpload').click());
 
         // 点击外部关闭扫描模态框
         bindModalClose('scanModal', () => this.closeScanModal());
@@ -1666,6 +1784,9 @@ class CardManager {
                 this._handleBatchFiles(files);
             }
         });
+
+        // 绑定批量缩略图删除事件（一次性绑定，使用事件委托）
+        this._bindBatchDeleteEvents();
 
         // 批量操作模式
         document.getElementById('batchModeBtn').addEventListener('click', () => this.toggleBatchMode());
@@ -2579,7 +2700,17 @@ class CardManager {
 
     resetScanModal() {
         // 重置所有状态
-        document.getElementById('scanUploadContent').style.display = 'block';
+        const uploadContent = document.getElementById('scanUploadContent');
+        uploadContent.innerHTML = `
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <p>点击或拖拽图片到此处</p>
+            <span class="scan-upload-hint">支持多选，JPG、PNG、BMP 格式</span>
+        `;
+        uploadContent.style.display = 'flex';
         document.getElementById('scanProgress').style.display = 'none';
         document.getElementById('scanResult').style.display = 'none';
         document.getElementById('scanInitialActions').style.display = 'block';
@@ -2587,7 +2718,6 @@ class CardManager {
         document.getElementById('scanImageUpload').value = '';
         document.getElementById('batchFileList').style.display = 'none';
         document.getElementById('batchFileList').innerHTML = '';
-        document.getElementById('batchAddMoreBtn').style.display = 'none';
         document.getElementById('batchResultSummary').style.display = 'none';
         this.scanImageData = null;
         this.scanOCRResult = null;
@@ -2604,55 +2734,106 @@ class CardManager {
 
     async _handleBatchFiles(files) {
         const listEl = document.getElementById('batchFileList');
-        const isFirstBatch = !this._batchQueue || this._batchQueue.length === 0;
+        const isFirstBatch = this._batchQueue.length === 0;
 
         if (isFirstBatch) {
             this._batchQueue = [];
             listEl.innerHTML = '';
         }
+        
         // 统一使用批量模式
         this._isBatchMode = true;
 
-        // 显示缩略图区域，隐藏上传提示
+        // 显示缩略图区域，上传区域变为紧凑的"点击添加更多"提示
         listEl.style.display = 'flex';
-        document.getElementById('scanUploadContent').style.display = 'none';
-        document.getElementById('batchAddMoreBtn').style.display = 'inline-block';
+        const uploadContent = document.getElementById('scanUploadContent');
+        uploadContent.innerHTML = '<p style="margin:0;font-size:0.85rem;color:var(--text-muted);">点击或拖拽添加更多图片</p>';
+        uploadContent.style.display = 'flex';
 
-        for (const file of files) {
-            const compressed = await new Promise(resolve => {
+        // 并行压缩图片（最多 3 张同时压缩）
+        const CONCURRENCY = 3;
+        const compressOne = async (file) => {
+            const dataUrl = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = (e) => this.compressImage(e.target.result, 1200, 0.8).then(resolve);
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('文件读取失败'));
                 reader.readAsDataURL(file);
             });
-            const idx = this._batchQueue.length;
-            this._batchQueue.push({ name: file.name, data: compressed });
-            const thumb = document.createElement('div');
-            thumb.className = 'batch-thumb-item';
-            thumb.innerHTML = '<button class="batch-thumb-delete" data-idx="' + idx + '" title="删除">&times;</button><img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
-            listEl.appendChild(thumb);
-        }
+            return this.compressImage(dataUrl, 1200, 0.8);
+        };
 
-        // 绑定删除按钮事件
-        listEl.querySelectorAll('.batch-thumb-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const idx = parseInt(btn.dataset.idx, 10);
-                if (isNaN(idx) || idx < 0 || idx >= this._batchQueue.length) return;
-                this._batchQueue.splice(idx, 1);
-                btn.closest('.batch-thumb-item').remove();
-                // 重新索引剩余缩略图
-                listEl.querySelectorAll('.batch-thumb-delete').forEach((b, i) => {
-                    b.dataset.idx = i;
+        // 并发调度压缩
+        const executing = new Set();
+        for (const file of files) {
+            const p = compressOne(file)
+                .then(compressed => ({ name: file.name, data: compressed }))
+                .catch(err => {
+                    warn('[Batch] 压缩失败:', file.name, err);
+                    alert('图片 "' + file.name + '" 处理失败，已跳过');
+                    return null;
                 });
-                if (this._batchQueue.length === 0) {
-                    document.getElementById('scanStartBtn').disabled = true;
-                    listEl.style.display = 'none';
-                    document.getElementById('scanUploadContent').style.display = '';
-                    document.getElementById('batchAddMoreBtn').style.display = 'none';
-                }
+            executing.add(p);
+            p.then(result => {
+                executing.delete(p);
+                if (!result) return;
+                const idx = this._batchQueue.length;
+                this._batchQueue.push(result);
+                const thumb = document.createElement('div');
+                thumb.className = 'batch-thumb-item';
+                thumb.dataset.idx = idx;
+                thumb.innerHTML = '<button class="batch-thumb-delete" title="删除">&times;</button><img src="' + result.data + '"><span class="batch-thumb-name">' + result.name + '</span>';
+                listEl.appendChild(thumb);
             });
+            if (executing.size >= CONCURRENCY) await Promise.race(executing);
+        }
+        await Promise.all(executing);
+
+        // 启用开始按钮
+        document.getElementById('scanStartBtn').disabled = this._batchQueue.length === 0;
+    }
+
+    // 绑定批量缩略图删除事件（在 bindEvents 中调用一次即可）
+    _bindBatchDeleteEvents() {
+        const listEl = document.getElementById('batchFileList');
+        
+        // 使用事件委托，避免重复绑定
+        listEl.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.batch-thumb-delete');
+            if (!deleteBtn) return;
+            
+            e.stopPropagation();
+            const thumbItem = deleteBtn.closest('.batch-thumb-item');
+            const idx = parseInt(thumbItem.dataset.idx, 10);
+            
+            if (isNaN(idx) || idx < 0 || idx >= this._batchQueue.length) return;
+            
+            // 从队列移除
+            this._batchQueue.splice(idx, 1);
+            thumbItem.remove();
+            
+            // 重新索引剩余缩略图
+            listEl.querySelectorAll('.batch-thumb-item').forEach((item, i) => {
+                item.dataset.idx = i;
+            });
+            
+            // 如果队列为空，恢复初始状态
+            if (this._batchQueue.length === 0) {
+                document.getElementById('scanStartBtn').disabled = true;
+                listEl.style.display = 'none';
+                const uc = document.getElementById('scanUploadContent');
+                uc.innerHTML = `
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                    <p>点击或拖拽图片到此处</p>
+                    <span class="scan-upload-hint">支持多选，JPG、PNG、BMP 格式</span>
+                `;
+                uc.style.display = 'flex';
+                this._isBatchMode = false;
+            }
         });
-        document.getElementById('scanStartBtn').disabled = false;
     }
 
     async startOCR() {
@@ -2703,12 +2884,11 @@ class CardManager {
         document.getElementById('scanInitialActions').style.display = 'none';
         document.getElementById('batchFileList').style.display = 'none';
 
-        for (let i = 0; i < total; i++) {
-            const item = this._batchQueue[i];
-            const pct = Math.round(((i) / total) * 100);
-            document.getElementById('scanProgressFill').style.width = pct + '%';
-            document.getElementById('scanProgressText').textContent = '正在处理 ' + (i + 1) + '/' + total + '：' + item.name;
+        // 并发控制：同时处理 2 张图片，避免 API 限流
+        const CONCURRENCY = 2;
+        let completed = 0;
 
+        const processOne = async (item, index) => {
             try {
                 // OCR
                 const ocrResult = await OCRSpace.recognize(item.data);
@@ -2716,7 +2896,7 @@ class CardManager {
                 log('[Batch OCR] ' + item.name + ':', ocrText);
 
                 // LLM Parse
-                document.getElementById('scanProgressText').textContent = '解析中 ' + (i + 1) + '/' + total + '：' + item.name;
+                this._updateBatchProgress(completed, total, item.name, '解析中');
                 let parsedInfo = await LLMParser.parse(ocrText, () => {});
                 if (!parsedInfo) parsedInfo = this.parseOCRText(ocrText);
                 parsedInfo = this._postProcessScanResult(parsedInfo, ocrText);
@@ -2731,18 +2911,110 @@ class CardManager {
                     }
                 }
 
-                // 自动确认保存
-                const saveResult = await this._autoConfirmScan(parsedInfo, item.data);
+                // 自动确认保存（不立即持久化，批量保存）
+                const saveResult = this._autoConfirmScanBatch(parsedInfo, item.data);
                 this._batchResults.push({ name: item.name, success: true, info: saveResult });
+                return { name: item.name, success: true, info: saveResult };
             } catch (err) {
                 warn('[Batch] 处理失败:', item.name, err);
                 this._batchResults.push({ name: item.name, success: false, error: err.message || '处理失败' });
+                return { name: item.name, success: false, error: err.message || '处理失败' };
+            }
+        };
+
+        // 并发调度
+        const executing = new Set();
+        for (let i = 0; i < total; i++) {
+            const item = this._batchQueue[i];
+            this._updateBatchProgress(completed, total, item.name, '正在识别');
+
+            const p = processOne(item, i).then(result => {
+                executing.delete(p);
+                completed++;
+                return result;
+            });
+            executing.add(p);
+
+            // 达到并发上限时等待任一完成
+            if (executing.size >= CONCURRENCY) {
+                await Promise.race(executing);
             }
         }
+        // 等待剩余任务完成
+        await Promise.all(executing);
+
+        // 批量处理完成后，统一保存一次
+        Storage.saveCards(this.cards);
+        if (CloudStorage.isAvailable()) {
+            // 批量同步云端（不阻塞 UI）
+            CloudStorage.saveCards(this.cards).catch(() => {});
+        }
+
+        // 刷新显示
+        this.renderCards();
+        this.checkLowStock();
 
         document.getElementById('scanProgressFill').style.width = '100%';
         document.getElementById('scanProgressText').textContent = '全部完成！';
         this._showBatchSummary();
+    }
+
+    _updateBatchProgress(completed, total, currentName, phase) {
+        const pct = Math.round((completed / total) * 100);
+        document.getElementById('scanProgressFill').style.width = pct + '%';
+        document.getElementById('scanProgressText').textContent = phase + ' ' + (completed + 1) + '/' + total + '：' + currentName;
+    }
+
+    // 批量模式下的自动确认（不立即持久化，只修改内存中的 cards 数组）
+    _autoConfirmScanBatch(parsedInfo, imageData) {
+        const chineseName = parsedInfo.chineseName || parsedInfo.englishName || '未命名色卡';
+        const englishName = parsedInfo.englishName || '';
+        const manufacturer = parsedInfo.manufacturer || '';
+        const material = parsedInfo.material || '';
+        const variant = parsedInfo.variant || '';
+        const category = parsedInfo.category || 'gray';
+        const color = parsedInfo.color || Utils.getColorForCategory(category);
+
+        // 尝试匹配现有色卡
+        let matchedCard = this.cards.find(c =>
+            c.chineseName === chineseName ||
+            (englishName && c.englishName === englishName)
+        );
+
+        if (matchedCard) {
+            const oldQty = matchedCard.quantity || 0;
+            matchedCard.quantity = oldQty + 1;
+            if (manufacturer) matchedCard.manufacturer = manufacturer;
+            if (material) matchedCard.material = material;
+            if (variant) matchedCard.variant = variant;
+            if (category) matchedCard.category = category;
+            // 不立即调用 Storage.saveCards，等批量完成后统一保存
+            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+            if (material) this.materialManager.addMaterial(material);
+            this.stockLogManager.add(matchedCard.id, matchedCard.chineseName, oldQty, matchedCard.quantity, 'scan');
+            return { type: 'update', name: matchedCard.chineseName, qty: matchedCard.quantity };
+        } else {
+            const newCard = {
+                id: Date.now() + Math.floor(Math.random() * 100000),
+                chineseName,
+                englishName,
+                manufacturer,
+                material,
+                variant,
+                category,
+                quantity: 1,
+                config: [],
+                image: imageData || '',
+                color,
+                notes: '',
+                sortOrder: this.cards.length
+            };
+            this.cards.push(newCard);
+            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+            if (material) this.materialManager.addMaterial(material);
+            this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
+            return { type: 'new', name: chineseName };
+        }
     }
 
     async _autoConfirmScan(parsedInfo, imageData) {
@@ -2831,61 +3103,31 @@ class CardManager {
 
     // 压缩图片：最大边长 maxSize，JPEG 质量 quality
     compressImage(dataUrl, maxSize = 1200, quality = 0.8) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                let { width, height } = img;
-                if (width > height && width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                } else if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
+                try {
+                    let { width, height } = img;
+                    if (width > height && width > maxSize) {
+                        height = (height * maxSize) / width;
+                        width = maxSize;
+                    } else if (height > maxSize) {
+                        width = (width * maxSize) / height;
+                        height = maxSize;
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                } catch (e) {
+                    reject(new Error('图片压缩失败: ' + e.message));
                 }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
             };
+            img.onerror = () => reject(new Error('图片加载失败'));
             img.src = dataUrl;
         });
-    }
-
-    async startOCR() {
-        if (!this.scanImageData) {
-            alert('请先上传图片！');
-            return;
-        }
-
-        // 显示进度条
-        document.getElementById('scanProgress').style.display = 'block';
-        document.getElementById('scanInitialActions').style.display = 'none';
-        document.getElementById('scanProgressText').textContent = '正在识别文字...';
-        document.getElementById('scanProgressFill').style.width = '10%';
-
-        try {
-            // 使用 OCR.Space 识别
-            document.getElementById('scanProgressText').textContent = '正在识别文字（OCR.Space）...';
-            document.getElementById('scanProgressFill').style.width = '30%';
-            
-            const ocrResult = await OCRSpace.recognize(this.scanImageData);
-            const ocrText = ocrResult.text;
-            const confidence = ocrResult.confidence;
-            log('[OCRSpace] 识别结果：', { confidence, text: ocrText });
-            document.getElementById('scanProgressFill').style.width = '85%';
-            document.getElementById('scanProgressText').textContent = '识别完成！AI 解析中...';
-            this.scanOCRResult = ocrText;
-            this.scanOCRConfidence = confidence;
-            await this.showScanResult(this.scanOCRResult);
-
-        } catch (error) {
-            error('OCR 识别失败：', error);
-            alert('OCR 识别失败，请重试！');
-            document.getElementById('scanProgress').style.display = 'none';
-            document.getElementById('scanInitialActions').style.display = 'block';
-        }
     }
 
     async callGoogleVision(imageDataUrl) {
@@ -4094,7 +4336,10 @@ class CardManager {
                 this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
             }
             Storage.saveCards(this.cards);
-            await CloudStorage.addCard(newCard);
+            // 后台同步到云端，不阻塞 UI
+            if (CloudStorage.isAvailable()) {
+                CloudStorage.addCard(newCard).catch(e => warn('云端同步失败', e));
+            }
             this.renderCards();
             this.modalManager.close('addCard');
         } catch (error) {
@@ -4173,7 +4418,10 @@ class CardManager {
             }
 
             Storage.saveCards(this.cards);
-            await CloudStorage.updateCard(this.cards[cardIndex]);
+            // 后台同步到云端，不阻塞 UI
+            if (CloudStorage.isAvailable()) {
+                CloudStorage.updateCard(this.cards[cardIndex]).catch(e => warn('云端同步失败', e));
+            }
             this.renderCards();
             this.modalManager.close('editCard');
         } catch (error) {
@@ -4507,13 +4755,84 @@ class CardManager {
     clearOldData() {
         const savedVersion = localStorage.getItem(VERSION_KEY);
         if (savedVersion !== CURRENT_VERSION) {
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(TEMPLATE_KEY);
-            localStorage.removeItem(MATERIALS_KEY);
-            localStorage.setItem(VERSION_KEY, CURRENT_VERSION);
-            this.cards = [];
-            this.template = { ...defaultTemplate };
-            this.materialManager.materials = [];
+            warn('[Storage] 版本变更 (' + savedVersion + ' -> ' + CURRENT_VERSION + ')');
+            
+            // 尝试迁移数据而非直接清除
+            const oldCards = localStorage.getItem(STORAGE_KEY);
+            const oldTemplate = localStorage.getItem(TEMPLATE_KEY);
+            const oldMaterials = localStorage.getItem(MATERIALS_KEY);
+            const oldManufacturers = localStorage.getItem(MANUFACTURERS_KEY);
+            
+            // 备份旧数据
+            if (oldCards) localStorage.setItem(STORAGE_KEY + '_backup_v' + savedVersion, oldCards);
+            if (oldTemplate) localStorage.setItem(TEMPLATE_KEY + '_backup_v' + savedVersion, oldTemplate);
+            if (oldMaterials) localStorage.setItem(MATERIALS_KEY + '_backup_v' + savedVersion, oldMaterials);
+            if (oldManufacturers) localStorage.setItem(MANUFACTURERS_KEY + '_backup_v' + savedVersion, oldManufacturers);
+            
+            // 尝试迁移：解析旧数据并验证结构
+            let migrationSuccess = false;
+            try {
+                if (oldCards) {
+                    const parsedCards = JSON.parse(oldCards);
+                    if (Array.isArray(parsedCards)) {
+                        // 验证每张卡片的必要字段
+                        const validCards = parsedCards.filter(card => 
+                            card && typeof card === 'object' && 
+                            (card.id || card.chineseName || card.englishName)
+                        );
+                        if (validCards.length > 0) {
+                            this.cards = validCards;
+                            log('[Storage] 迁移了 ' + validCards.length + ' 张色卡');
+                            migrationSuccess = true;
+                        }
+                    }
+                }
+                
+                if (oldTemplate) {
+                    const parsedTemplate = JSON.parse(oldTemplate);
+                    if (parsedTemplate && typeof parsedTemplate === 'object') {
+                        this.template = { ...defaultTemplate, ...parsedTemplate };
+                        log('[Storage] 迁移了模板配置');
+                    }
+                }
+                
+                if (oldMaterials) {
+                    const parsedMaterials = JSON.parse(oldMaterials);
+                    if (Array.isArray(parsedMaterials)) {
+                        this.materialManager.materials = parsedMaterials.filter(m => typeof m === 'string');
+                        log('[Storage] 迁移了 ' + this.materialManager.materials.length + ' 个材料');
+                    }
+                }
+                
+                if (oldManufacturers) {
+                    const parsedManufacturers = JSON.parse(oldManufacturers);
+                    if (Array.isArray(parsedManufacturers)) {
+                        this.materialManager.manufacturers = parsedManufacturers.filter(m => typeof m === 'string');
+                        log('[Storage] 迁移了 ' + this.materialManager.manufacturers.length + ' 个产商');
+                    }
+                }
+                
+                // 迁移成功后，更新版本号但保留数据
+                localStorage.setItem(VERSION_KEY, CURRENT_VERSION);
+                log('[Storage] 数据迁移完成');
+                
+            } catch (e) {
+                warn('[Storage] 数据迁移失败，将清除本地数据', e);
+                migrationSuccess = false;
+            }
+            
+            // 迁移失败时清除数据
+            if (!migrationSuccess) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(TEMPLATE_KEY);
+                localStorage.removeItem(MATERIALS_KEY);
+                localStorage.removeItem(MANUFACTURERS_KEY);
+                localStorage.setItem(VERSION_KEY, CURRENT_VERSION);
+                this.cards = [];
+                this.template = { ...defaultTemplate };
+                this.materialManager.materials = [];
+                this.materialManager.manufacturers = [];
+            }
         }
     }
 }
@@ -4558,7 +4877,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 window.cardManager._syncing = false;
             }
-        }, 10000); // 10 秒轮询一次
+        }, SYNC_INTERVAL_MS);
     }
 
     // 移动端底部导航
