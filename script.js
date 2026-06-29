@@ -4213,18 +4213,22 @@ class CardManager {
             // 第1步：加载色卡数据
             CloudStorage.setStatus('syncing', '正在同步色卡数据...');
             const cloudCards = await CloudStorage.loadCards();
+            if (cloudUnreachable) throw new Error('云端不可达');
 
             // 第2步：加载材料列表
             CloudStorage.setStatus('syncing', '正在同步材料列表...');
             const cloudMaterials = await CloudStorage.loadMaterials();
+            if (cloudUnreachable) throw new Error('云端不可达');
 
             // 第3步：加载产商列表
             CloudStorage.setStatus('syncing', '正在同步产商列表...');
             const cloudManufacturers = await CloudStorage.loadManufacturers();
+            if (cloudUnreachable) throw new Error('云端不可达');
 
             // 第4步：加载模板
             CloudStorage.setStatus('syncing', '正在同步模板配置...');
             const cloudTemplate = await CloudStorage.loadTemplate();
+            if (cloudUnreachable) throw new Error('云端不可达');
 
             // 云端为唯一数据源，直接覆盖本地
             if (cloudCards) {
