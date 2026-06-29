@@ -2606,12 +2606,15 @@ class CardManager {
         if (hasExisting) {
             this._isBatchMode = true;
         } else if (files.length === 1) {
-            // 首次拖放单图：单图模式
+            // 首次拖放单图：单图模式，但也初始化队列
             this._isBatchMode = false;
+            this._batchQueue = [];
             const reader = new FileReader();
             reader.onload = (event) => {
                 this.compressImage(event.target.result, 1200, 0.8).then(compressed => {
                     this.scanImageData = compressed;
+                    // 同时加入队列，方便后续追加
+                    this._batchQueue.push({ name: files[0].name, data: compressed });
                     listEl.style.display = 'flex';
                     listEl.innerHTML = '<div class="batch-thumb-item"><img src="' + compressed + '"><span class="batch-thumb-name">' + files[0].name + '</span></div>';
                     document.getElementById('scanUploadContent').style.display = 'none';
