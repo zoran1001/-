@@ -1324,7 +1324,8 @@ const LLMParser = {
 - 只返回 JSON：{"chineseName":"","englishName":"","manufacturer":"","material":"","variant":"","category":""}
 - 颜色分类：red/orange/yellow/green/cyan/blue/purple/black/white/gray，或其他颜色英文名
 - 材料是基础材质（PLA/PETG/ABS 等），材质是变体（Matte/Lite/M/Silk 等）
-- 英文名是颜色名，中文名是英文的中文翻译
+- 英文名必须保留完整颜色名（如 "Milk Green" 不能简写为 "Green"，"Sky Blue" 不能简写为 "Blue"）
+- 中文名是英文名的中文翻译（如 Milk Green=牛奶绿，Sky Blue=天蓝）
 - 产商是品牌名（Jucoole/kexcelled/Bambu Lab 等）`;
 
         // 构建消息内容（纯文字模式，API 不支持图片）
@@ -3437,6 +3438,17 @@ class CardManager {
                     parsedInfo.englishName = colorEN;
                     parsedInfo.chineseName = this._colorENtoCN[colorEN] || colorEN;
                 }
+            }
+        }
+
+        // 1b. 修复英文名：如果 LLM 返回基础色名（如 "Green"），尝试从原文找更精确的复合色名（如 "Milk Green"）
+        const basicColors = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'white', 'gray', 'pink', 'brown'];
+        if (parsedInfo.englishName && basicColors.includes(parsedInfo.englishName.toLowerCase())) {
+            const specificEN = this._findColorEN(rawText);
+            if (specificEN && specificEN.toLowerCase() !== parsedInfo.englishName.toLowerCase()) {
+                log('[PostProcess] 基础色名升级:', parsedInfo.englishName, '→', specificEN);
+                parsedInfo.englishName = specificEN.charAt(0).toUpperCase() + specificEN.slice(1);
+                parsedInfo.chineseName = this._colorENtoCN[specificEN] || specificEN;
             }
         }
 
