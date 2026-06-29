@@ -2599,15 +2599,19 @@ class CardManager {
     }
 
     async _handleBatchFiles(files) {
-        if (files.length === 1) {
-            // 单图模式：保持原有行为
+        const listEl = document.getElementById('batchFileList');
+        const hasExisting = this._batchQueue && this._batchQueue.length > 0;
+
+        // 如果已有文件，切换到批量模式并追加
+        if (hasExisting) {
+            this._isBatchMode = true;
+        } else if (files.length === 1) {
+            // 首次拖放单图：单图模式
             this._isBatchMode = false;
             const reader = new FileReader();
             reader.onload = (event) => {
                 this.compressImage(event.target.result, 1200, 0.8).then(compressed => {
                     this.scanImageData = compressed;
-                    // 显示单张预览
-                    const listEl = document.getElementById('batchFileList');
                     listEl.style.display = 'flex';
                     listEl.innerHTML = '<div class="batch-thumb-item"><img src="' + compressed + '"><span class="batch-thumb-name">' + files[0].name + '</span></div>';
                     document.getElementById('scanUploadContent').style.display = 'none';
@@ -2615,29 +2619,31 @@ class CardManager {
                 });
             };
             reader.readAsDataURL(files[0]);
+            return;
         } else {
-            // 批量模式
+            // 首次拖放多图：批量模式
             this._isBatchMode = true;
             this._batchQueue = [];
-            const listEl = document.getElementById('batchFileList');
-            listEl.style.display = 'flex';
             listEl.innerHTML = '';
-            document.getElementById('scanUploadContent').style.display = 'none';
-
-            for (const file of files) {
-                const compressed = await new Promise(resolve => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => this.compressImage(e.target.result, 1200, 0.8).then(resolve);
-                    reader.readAsDataURL(file);
-                });
-                this._batchQueue.push({ name: file.name, data: compressed });
-                const thumb = document.createElement('div');
-                thumb.className = 'batch-thumb-item';
-                thumb.innerHTML = '<img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
-                listEl.appendChild(thumb);
-            }
-            document.getElementById('scanStartBtn').disabled = false;
         }
+
+        // 批量模式：处理并追加文件
+        listEl.style.display = 'flex';
+        document.getElementById('scanUploadContent').style.display = 'none';
+
+        for (const file of files) {
+            const compressed = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = (e) => this.compressImage(e.target.result, 1200, 0.8).then(resolve);
+                reader.readAsDataURL(file);
+            });
+            this._batchQueue.push({ name: file.name, data: compressed });
+            const thumb = document.createElement('div');
+            thumb.className = 'batch-thumb-item';
+            thumb.innerHTML = '<img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
+            listEl.appendChild(thumb);
+        }
+        document.getElementById('scanStartBtn').disabled = false;
     }
 
     async startOCR() {
