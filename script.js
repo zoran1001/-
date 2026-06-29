@@ -1640,11 +1640,13 @@ class CardManager {
         document.getElementById('scanStartBtn').addEventListener('click', () => this.startOCR());
         document.getElementById('scanConfirmBtn').addEventListener('click', () => this.confirmScanResult());
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
+        document.getElementById('batchDoneBtn').addEventListener('click', () => this.closeScanModal());
+        document.getElementById('batchRetryBtn').addEventListener('click', () => this.resetScanModal());
 
         // 点击外部关闭扫描模态框
         bindModalClose('scanModal', () => this.closeScanModal());
 
-        // 拖拽上传支持
+        // 拖拽上传支持（多图）
         const uploadArea = document.getElementById('scanUploadArea');
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -1656,10 +1658,9 @@ class CardManager {
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.match('image.*')) {
-                document.getElementById('scanImageUpload').files = e.dataTransfer.files;
-                this.handleScanImageUpload({ target: { files: [file] } });
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.match('image.*'));
+            if (files.length > 0) {
+                this._handleBatchFiles(files);
             }
         });
 
@@ -2576,44 +2577,240 @@ class CardManager {
     resetScanModal() {
         // 重置所有状态
         document.getElementById('scanUploadContent').style.display = 'block';
-        document.getElementById('scanPreviewImg').style.display = 'none';
         document.getElementById('scanProgress').style.display = 'none';
         document.getElementById('scanResult').style.display = 'none';
         document.getElementById('scanInitialActions').style.display = 'block';
         document.getElementById('scanStartBtn').disabled = true;
         document.getElementById('scanImageUpload').value = '';
-        this.scanImageData = null; // 存储图片数据
-        this.scanOCRResult = null; // 存储 OCR 结果
+        document.getElementById('batchFileList').style.display = 'none';
+        document.getElementById('batchFileList').innerHTML = '';
+        document.getElementById('batchResultSummary').style.display = 'none';
+        this.scanImageData = null;
+        this.scanOCRResult = null;
+        this._batchQueue = [];
+        this._batchResults = [];
+        this._isBatchMode = false;
     }
 
     handleScanImageUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files).filter(f => f.type.match('image.*'));
+        if (files.length === 0) return;
+        this._handleBatchFiles(files);
+    }
 
-        // 验证文件类型
-        if (!file.type.match('image.*')) {
-            alert('请选择图片文件！');
+    async _handleBatchFiles(files) {
+        if (files.length === 1) {
+            // 单图模式：保持原有行为
+            this._isBatchMode = false;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.compressImage(event.target.result, 1200, 0.8).then(compressed => {
+                    this.scanImageData = compressed;
+                    // 显示单张预览
+                    const listEl = document.getElementById('batchFileList');
+                    listEl.style.display = 'flex';
+                    listEl.innerHTML = '<div class="batch-thumb-item"><img src="' + compressed + '"><span class="batch-thumb-name">' + files[0].name + '</span></div>';
+                    document.getElementById('scanUploadContent').style.display = 'none';
+                    document.getElementById('scanStartBtn').disabled = false;
+                });
+            };
+            reader.readAsDataURL(files[0]);
+        } else {
+            // 批量模式
+            this._isBatchMode = true;
+            this._batchQueue = [];
+            const listEl = document.getElementById('batchFileList');
+            listEl.style.display = 'flex';
+            listEl.innerHTML = '';
+            document.getElementById('scanUploadContent').style.display = 'none';
+
+            for (const file of files) {
+                const compressed = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => this.compressImage(e.target.result, 1200, 0.8).then(resolve);
+                    reader.readAsDataURL(file);
+                });
+                this._batchQueue.push({ name: file.name, data: compressed });
+                const thumb = document.createElement('div');
+                thumb.className = 'batch-thumb-item';
+                thumb.innerHTML = '<img src="' + compressed + '"><span class="batch-thumb-name">' + file.name + '</span>';
+                listEl.appendChild(thumb);
+            }
+            document.getElementById('scanStartBtn').disabled = false;
+        }
+    }
+
+    async startOCR() {
+        if (this._isBatchMode && this._batchQueue.length > 1) {
+            await this._startBatchOCR();
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const imgData = event.target.result;
-            // 压缩图片后再存储
-            this.compressImage(imgData, 1200, 0.8).then(compressed => {
-                this.scanImageData = compressed;
+        // 单图模式
+        if (!this.scanImageData) {
+            alert('请先上传图片！');
+            return;
+        }
 
-                // 显示预览
-                const previewImg = document.getElementById('scanPreviewImg');
-                previewImg.src = compressed;
-                previewImg.style.display = 'block';
-                document.getElementById('scanUploadContent').style.display = 'none';
+        // 显示进度条
+        document.getElementById('scanProgress').style.display = 'block';
+        document.getElementById('scanInitialActions').style.display = 'none';
+        document.getElementById('scanProgressText').textContent = '正在识别文字...';
+        document.getElementById('scanProgressFill').style.width = '10%';
 
-                // 启用识别按钮
-                document.getElementById('scanStartBtn').disabled = false;
-            });
-        };
-        reader.readAsDataURL(file);
+        try {
+            document.getElementById('scanProgressText').textContent = '正在识别文字（OCR.Space）...';
+            document.getElementById('scanProgressFill').style.width = '30%';
+            
+            const ocrResult = await OCRSpace.recognize(this.scanImageData);
+            const ocrText = ocrResult.text;
+            const confidence = ocrResult.confidence;
+            log('[OCRSpace] 识别结果：', { confidence, text: ocrText });
+            document.getElementById('scanProgressFill').style.width = '85%';
+            document.getElementById('scanProgressText').textContent = '识别完成！AI 解析中...';
+            this.scanOCRResult = ocrText;
+            this.scanOCRConfidence = confidence;
+            await this.showScanResult(this.scanOCRResult);
+
+        } catch (error) {
+            error('OCR 识别失败：', error);
+            alert('OCR 识别失败，请重试！');
+            document.getElementById('scanProgress').style.display = 'none';
+            document.getElementById('scanInitialActions').style.display = 'block';
+        }
+    }
+
+    async _startBatchOCR() {
+        const total = this._batchQueue.length;
+        this._batchResults = [];
+        document.getElementById('scanProgress').style.display = 'block';
+        document.getElementById('scanInitialActions').style.display = 'none';
+        document.getElementById('batchFileList').style.display = 'none';
+
+        for (let i = 0; i < total; i++) {
+            const item = this._batchQueue[i];
+            const pct = Math.round(((i) / total) * 100);
+            document.getElementById('scanProgressFill').style.width = pct + '%';
+            document.getElementById('scanProgressText').textContent = '正在处理 ' + (i + 1) + '/' + total + '：' + item.name;
+
+            try {
+                // OCR
+                const ocrResult = await OCRSpace.recognize(item.data);
+                const ocrText = ocrResult.text;
+                log('[Batch OCR] ' + item.name + ':', ocrText);
+
+                // LLM Parse
+                document.getElementById('scanProgressText').textContent = '解析中 ' + (i + 1) + '/' + total + '：' + item.name;
+                let parsedInfo = await LLMParser.parse(ocrText, () => {});
+                if (!parsedInfo) parsedInfo = this.parseOCRText(ocrText);
+                parsedInfo = this._postProcessScanResult(parsedInfo, ocrText);
+
+                // 自动新建分类
+                if (parsedInfo.category && parsedInfo.englishName) {
+                    const validCats = LLMParser._validCategories || ['red','orange','yellow','green','cyan','blue','purple','black','white','gray','pink','brown'];
+                    if (!validCats.includes(parsedInfo.category)) {
+                        const colorHex = parsedInfo.color || this._guessColorHex(parsedInfo.englishName);
+                        addNewCategory(parsedInfo.category, parsedInfo.chineseName || parsedInfo.englishName, colorHex);
+                        validCats.push(parsedInfo.category);
+                    }
+                }
+
+                // 自动确认保存
+                const saveResult = await this._autoConfirmScan(parsedInfo, item.data);
+                this._batchResults.push({ name: item.name, success: true, info: saveResult });
+            } catch (err) {
+                warn('[Batch] 处理失败:', item.name, err);
+                this._batchResults.push({ name: item.name, success: false, error: err.message || '处理失败' });
+            }
+        }
+
+        document.getElementById('scanProgressFill').style.width = '100%';
+        document.getElementById('scanProgressText').textContent = '全部完成！';
+        this._showBatchSummary();
+    }
+
+    async _autoConfirmScan(parsedInfo, imageData) {
+        const chineseName = parsedInfo.chineseName || parsedInfo.englishName || '未命名色卡';
+        const englishName = parsedInfo.englishName || '';
+        const manufacturer = parsedInfo.manufacturer || '';
+        const material = parsedInfo.material || '';
+        const variant = parsedInfo.variant || '';
+        const category = parsedInfo.category || 'gray';
+        const color = parsedInfo.color || Utils.getColorForCategory(category);
+
+        // 尝试匹配现有色卡
+        let matchedCard = this.cards.find(c =>
+            c.chineseName === chineseName ||
+            (englishName && c.englishName === englishName)
+        );
+
+        if (matchedCard) {
+            // 增加库存
+            const oldQty = matchedCard.quantity || 0;
+            matchedCard.quantity = oldQty + 1;
+            if (manufacturer) matchedCard.manufacturer = manufacturer;
+            if (material) matchedCard.material = material;
+            if (variant) matchedCard.variant = variant;
+            if (category) matchedCard.category = category;
+            Storage.saveCards(this.cards);
+            if (CloudStorage.isAvailable()) CloudStorage.updateCard(matchedCard).catch(() => {});
+            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+            if (material) this.materialManager.addMaterial(material);
+            this.stockLogManager.add(matchedCard.id, matchedCard.chineseName, oldQty, matchedCard.quantity, 'scan');
+            return { type: 'update', name: matchedCard.chineseName, qty: matchedCard.quantity };
+        } else {
+            // 新建色卡
+            const newCard = {
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                chineseName,
+                englishName,
+                manufacturer,
+                material,
+                variant,
+                category,
+                quantity: 1,
+                config: [],
+                image: imageData || '',
+                color,
+                notes: '',
+                sortOrder: this.cards.length
+            };
+            this.cards.push(newCard);
+            Storage.saveCards(this.cards);
+            if (CloudStorage.isAvailable()) CloudStorage.addCard(newCard).catch(() => {});
+            if (manufacturer) this.materialManager.addManufacturer(manufacturer);
+            if (material) this.materialManager.addMaterial(material);
+            this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
+            return { type: 'new', name: chineseName };
+        }
+    }
+
+    _showBatchSummary() {
+        document.getElementById('scanProgress').style.display = 'none';
+        document.getElementById('batchResultSummary').style.display = 'block';
+
+        const success = this._batchResults.filter(r => r.success);
+        const failed = this._batchResults.filter(r => !r.success);
+        const newCards = success.filter(r => r.info.type === 'new');
+        const updated = success.filter(r => r.info.type === 'update');
+
+        const statsEl = document.getElementById('batchSummaryStats');
+        statsEl.innerHTML = '<span class="batch-stat success">成功 ' + success.length + ' 张</span>' +
+            (failed.length ? '<span class="batch-stat fail">失败 ' + failed.length + ' 张</span>' : '') +
+            '<span class="batch-stat info">新增 ' + newCards.length + ' 张，更新 ' + updated.length + ' 张</span>';
+
+        const listEl = document.getElementById('batchResultList');
+        listEl.innerHTML = this._batchResults.map(r => {
+            if (r.success) {
+                const label = r.info.type === 'new' ? '新增' : '更新库存→' + r.info.qty;
+                return '<div class="batch-result-item success"><span class="batch-result-icon">✓</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + r.info.name + ' (' + label + ')</span></div>';
+            } else {
+                return '<div class="batch-result-item fail"><span class="batch-result-icon">✗</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + r.error + '</span></div>';
+            }
+        }).join('');
+
+        this.renderCards();
+        this.checkLowStock();
     }
 
     // 压缩图片：最大边长 maxSize，JPEG 质量 quality

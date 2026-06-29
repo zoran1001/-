@@ -3408,3 +3408,136 @@ input:checked + .toggle-slider:before {
 .form-qty-btn.form-qty-dec:active {
     background: rgba(239, 68, 68, 0.1);
 }
+
+/* ===== 批量扫描 ===== */
+.batch-file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 16px 0;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.batch-thumb-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+    min-width: 80px;
+}
+
+.batch-thumb-item img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+}
+
+.batch-thumb-name {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.batch-result-summary {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.batch-summary-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.batch-stat {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.batch-stat.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.batch-stat.fail {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.batch-stat.info {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+}
+
+.batch-result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.batch-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default);
+}
+
+.batch-result-item.success {
+    border-left: 3px solid #10b981;
+}
+
+.batch-result-item.fail {
+    border-left: 3px solid #ef4444;
+}
+
+.batch-result-icon {
+    font-size: 1.2rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.batch-result-item.success .batch-result-icon {
+    color: #10b981;
+}
+
+.batch-result-item.fail .batch-result-icon {
+    color: #ef4444;
+}
+
+.batch-result-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.batch-result-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}

@@ -16,7 +16,7 @@
     <link rel="dns-prefetch" href="https://api.ocr.space">
     <link rel="dns-prefetch" href="https://api.deepseek.com">
     <title>色卡管理工具</title>
-    <link rel="stylesheet" href="style.css?v=1.5.4">
+    <link rel="stylesheet" href="style.css?v=1.6.0">
 </head>
 <body>
     <!-- ===== 应用整体布局 ===== -->
@@ -572,7 +572,7 @@
                 </div>
                 <div class="admin-list" id="manufacturersList"></div>
             </div>
-            <div class="app-version">色卡管理工具 v1.5.4</div>
+            <div class="app-version">色卡管理工具 v1.6.0</div>
         </div>
     </div>
 
@@ -581,10 +581,10 @@
         <div class="modal-content scan-modal">
             <button class="close-btn" id="closeScanModalBtn" type="button" aria-label="关闭弹窗">&times;</button>
             <h2>📷 扫描识别色卡</h2>
-            <p class="scan-hint">上传包含色卡信息的图片，系统将自动识别并添加色卡</p>
+            <p class="scan-hint">上传一张或多张图片，系统将自动识别并添加色卡</p>
             
             <div class="scan-upload-area" id="scanUploadArea">
-                <input type="file" id="scanImageUpload" accept="image/*" style="display:none;">
+                <input type="file" id="scanImageUpload" accept="image/*" multiple style="display:none;">
                 <div class="scan-upload-content" id="scanUploadContent">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
                         <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -592,11 +592,14 @@
                         <path d="M21 15l-5-5L5 21"/>
                     </svg>
                     <p>点击或拖拽图片到此处</p>
-                    <span class="scan-upload-hint">支持 JPG、PNG、BMP 格式</span>
+                    <span class="scan-upload-hint">支持多选，JPG、PNG、BMP 格式</span>
                 </div>
-                <img id="scanPreviewImg" class="scan-preview-img" style="display:none;">
             </div>
 
+            <!-- 批量文件列表 -->
+            <div class="batch-file-list" id="batchFileList" style="display:none;"></div>
+
+            <!-- 批量进度 -->
             <div class="scan-progress" id="scanProgress" style="display:none;">
                 <div class="scan-progress-bar">
                     <div class="scan-progress-fill" id="scanProgressFill"></div>
@@ -604,6 +607,7 @@
                 <p class="scan-progress-text" id="scanProgressText">正在初始化...</p>
             </div>
 
+            <!-- 单张识别结果（仅单图模式显示） -->
             <div class="scan-result" id="scanResult" style="display:none;">
                 <h3>识别结果</h3>
                 <div class="scan-raw-text">
@@ -676,6 +680,17 @@
                 <div class="scan-actions">
                     <button type="button" class="scan-btn-primary" id="scanConfirmBtn">确认添加</button>
                     <button type="button" class="scan-btn-secondary" id="scanRetryBtn">重新识别</button>
+                </div>
+            </div>
+
+            <!-- 批量扫描结果汇总 -->
+            <div class="batch-result-summary" id="batchResultSummary" style="display:none;">
+                <h3>批量扫描完成</h3>
+                <div class="batch-summary-stats" id="batchSummaryStats"></div>
+                <div class="batch-result-list" id="batchResultList"></div>
+                <div class="scan-actions">
+                    <button type="button" class="scan-btn-primary" id="batchDoneBtn">完成</button>
+                    <button type="button" class="scan-btn-secondary" id="batchRetryBtn">重新扫描</button>
                 </div>
             </div>
 
@@ -787,8 +802,8 @@
     <!-- ===== Toast 通知容器 ===== -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="supabase.js?v=1.5.4" defer></script>
-    <script src="script.js?v=1.5.4" defer></script>
+    <script src="supabase.js?v=1.6.0" defer></script>
+    <script src="script.js?v=1.6.0" defer></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
