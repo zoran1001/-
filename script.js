@@ -493,7 +493,9 @@ const CloudStorage = {
                         manufacturer: template.manufacturer,
                         material: template.material,
                         config: template.config
-                    });
+                    }),
+                    CLOUD_TIMEOUT, '保存模板'
+                );
                 if (error) throw error;
             }
             return true;
