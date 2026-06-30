@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.10';
+const CURRENT_VERSION = '2.11';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -56,6 +56,7 @@ const CARD_IMAGE_MAX_SIZE = 800;
 const CARD_IMAGE_QUALITY = 0.85;
 const SEARCH_DEBOUNCE_MS = 300;
 const SYNC_INTERVAL_MS = 30000; // 30 秒轮询一次
+const REFRESH_COOLDOWN_MS = 10000; // 刷新按钮 10 秒冷却
 const DELETE_KEY_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_SEARCH_HISTORY = 10;
 const STOCK_WARNING_DEFAULT_THRESHOLD = 1;
@@ -1604,6 +1605,7 @@ class CardManager {
         this.draggedCardId = null;
         this._lastRenderedKey = null;    // Cache for avoiding unnecessary re-renders
         this._lastLocalChange = 0;       // Timestamp of last local modification (for sync cooldown)
+        this._lastRefreshTime = 0;       // Timestamp of last manual refresh (for button cooldown)
         
         // 批量扫描相关状态
         this._batchQueue = [];           // 待处理图片队列
@@ -1860,9 +1862,19 @@ class CardManager {
         
         bindModalClose('stockSettingsModal', () => this.closeStockSettings());
 
-        // 刷新按钮
+        // 刷新按钮（带冷却限制）
         document.getElementById('refreshBtn').addEventListener('click', () => {
             const btn = document.getElementById('refreshBtn');
+            const now = Date.now();
+            const timeSinceLastRefresh = now - (this._lastRefreshTime || 0);
+
+            if (timeSinceLastRefresh < REFRESH_COOLDOWN_MS) {
+                const remaining = Math.ceil((REFRESH_COOLDOWN_MS - timeSinceLastRefresh) / 1000);
+                Toast.show(`刷新冷却中，请等待 ${remaining} 秒`);
+                return;
+            }
+
+            this._lastRefreshTime = now;
             btn.disabled = true;
             btn.querySelector('svg').style.animation = 'spin 1s linear infinite';
             
@@ -2315,10 +2327,19 @@ class CardManager {
         Storage.saveCards(this.cards);
         this._lastLocalChange = Date.now();  // 记录本地修改时间
         localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
+
+        // 真正从云端删除已移除的卡片，并检查结果
         if (CloudStorage.isAvailable()) {
-            // 真正从云端删除已移除的卡片，而非仅 upsert 剩余卡片
-            await Promise.all(deletedCards.map(c => CloudStorage.deleteCard(c.id)));
+            const results = await Promise.all(deletedCards.map(c => CloudStorage.deleteCard(c.id)));
+            const failedCount = results.filter(r => !r).length;
+            if (failedCount > 0) {
+                console.warn(`[BatchDelete] 云端删除失败: ${failedCount}/${deletedCards.length}`);
+                setTimeout(() => {
+                    Toast.show(`${failedCount} 张卡片云端删除失败，下次同步可能会恢复`);
+                }, 500);
+            }
         }
+
         this.selectedCards.clear();
         this.applyFilters();
 
