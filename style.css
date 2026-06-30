@@ -1558,6 +1558,11 @@ footer {
         right: calc(28px + env(safe-area-inset-right, 0px));
     }
 
+    /* 库存预警安全区域 */
+    .low-stock-warning {
+        padding: env(safe-area-inset-top, 0px) 12px 0;
+    }
+
     /* 平板端卡片优化 */
     .cards-container {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1599,8 +1604,8 @@ footer {
 
     /* 顶栏简化 - 只显示必要元素 */
     .topbar {
-        height: 52px;
-        padding: 0 12px;
+        height: calc(52px + env(safe-area-inset-top, 0px));
+        padding: env(safe-area-inset-top, 0px) 12px 0;
         gap: 8px;
     }
 
@@ -1781,7 +1786,7 @@ footer {
     }
 
     .topbar {
-        padding: 0 8px;
+        padding: env(safe-area-inset-top, 0px) 8px 0;
     }
 
     .search-input {
@@ -2352,6 +2357,25 @@ footer {
     border-color: var(--border-hover);
     background: var(--bg-secondary);
     color: var(--text-primary);
+}
+
+.scan-btn-cancel {
+    flex: 1;
+    padding: 12px 24px;
+    border: 1.5px solid #fca5a5;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: #dc2626;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-family: var(--font-sans);
+}
+
+.scan-btn-cancel:hover {
+    border-color: #dc2626;
+    background: #fef2f2;
 }
 
 /* 响应式 */

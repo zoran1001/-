@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.11';
+const CURRENT_VERSION = '2.14';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -1196,6 +1196,7 @@ class UndoManager {
                     }
                 });
                 Storage.saveCards(cm.cards);
+                cm._lastLocalChange = Date.now();  // 防止轮询覆盖撤销操作
                 localStorage.removeItem(LOCAL_DELETE_KEY);
                 if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
                 cm.applyFilters();
@@ -1208,7 +1209,8 @@ class UndoManager {
                 if (idx !== -1) {
                     cm.cards[idx] = { ...cm.cards[idx], ...previousState };
                     Storage.saveCards(cm.cards);
-                    CloudStorage.updateCard(cm.cards[idx]);
+                    cm._lastLocalChange = Date.now();  // 防止轮询覆盖撤销操作
+                    if (CloudStorage.isAvailable()) CloudStorage.updateCard(cm.cards[idx]);
                     cm.applyFilters();
                 }
                 return `已撤销编辑`;
@@ -1223,6 +1225,7 @@ class UndoManager {
                     }
                 });
                 Storage.saveCards(cm.cards);
+                cm._lastLocalChange = Date.now();  // 防止轮询覆盖撤销操作
                 if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
                 cm.applyFilters();
                 return `已撤销批量操作`;
@@ -1231,6 +1234,7 @@ class UndoManager {
                 // Restore previous order
                 cm.cards = action.data.previousOrder;
                 Storage.saveCards(cm.cards);
+                cm._lastLocalChange = Date.now();  // 防止轮询覆盖撤销操作
                 if (CloudStorage.isAvailable()) CloudStorage.saveCards(cm.cards);
                 cm.applyFilters();
                 return `已撤销排序`;
@@ -1240,7 +1244,7 @@ class UndoManager {
     }
 
     showUndoToast(description) {
-        // 已关闭撤销弹窗
+        Toast.show(description, '撤销', () => this.undo());
     }
 }
 
@@ -1764,7 +1768,8 @@ class CardManager {
         document.getElementById('scanStartBtn').addEventListener('click', () => this.startOCR());
         document.getElementById('scanConfirmBtn').addEventListener('click', () => this.confirmScanResult());
         document.getElementById('scanRetryBtn').addEventListener('click', () => this.resetScanModal());
-        document.getElementById('batchDoneBtn').addEventListener('click', () => this.closeScanModal());
+        document.getElementById('batchDoneBtn').addEventListener('click', () => { this._commitBatchResults(); this.closeScanModal(); });
+        document.getElementById('batchCancelBtn').addEventListener('click', () => this.resetScanModal());
         document.getElementById('batchRetryBtn').addEventListener('click', () => this.resetScanModal());
 
         // 点击外部关闭扫描模态框
@@ -2378,6 +2383,16 @@ class CardManager {
 
         if (!confirm(`将对选中的 ${this.selectedCards.size} 张色卡执行以下修改：\n${changes.join('\n')}\n\n确认执行？`)) return;
 
+        // 保存修改前的状态（用于撤销）
+        const previousStates = [];
+        this.cards.forEach(card => {
+            if (!this.selectedCards.has(card.id)) return;
+            previousStates.push({
+                cardId: card.id,
+                state: { manufacturer: card.manufacturer, material: card.material, quantity: card.quantity }
+            });
+        });
+
         this.cards.forEach(card => {
             if (!this.selectedCards.has(card.id)) return;
             const oldQuantity = card.quantity || 0;
@@ -2400,6 +2415,15 @@ class CardManager {
         if (CloudStorage.isAvailable()) {
             CloudStorage.saveCards(this.cards);
         }
+
+        // 记录撤销
+        this.undoManager.push({
+            type: 'batch',
+            data: { previousStates },
+            description: `已批量修改 ${previousStates.length} 张色卡`
+        });
+        this.undoManager.showUndoToast(`已批量修改 ${previousStates.length} 张色卡`);
+
         this.selectedCards.clear();
         this.applyFilters();
     }
@@ -2937,8 +2961,8 @@ class CardManager {
                     }
                 }
 
-                // 自动确认保存（不立即持久化，批量保存）
-                const saveResult = this._autoConfirmScanBatch(parsedInfo, item.data);
+                // 预览扫描结果（不修改 cards 数组，等用户确认）
+                const saveResult = this._previewScanResult(parsedInfo, item.data);
                 this._batchResults.push({ name: item.name, success: true, info: saveResult, ocrText: ocrText, imageData: item.data });
                 return { name: item.name, success: true, info: saveResult };
             } catch (err) {
@@ -2969,19 +2993,7 @@ class CardManager {
         // 等待剩余任务完成
         await Promise.all(executing);
 
-        // 批量处理完成后，统一保存一次
-        Storage.saveCards(this.cards);
-        this._lastLocalChange = Date.now();  // 记录本地修改时间，防止轮询覆盖
-        if (CloudStorage.isAvailable()) {
-            // 批量同步云端（不阻塞 UI）
-            CloudStorage.saveCards(this.cards).catch(() => {});
-        }
-
-        // 刷新显示
-        this._lastRenderedKey = null;  // 强制刷新，避免缓存键碰撞导致 UI 不更新
-        this.renderCards();
-        this.checkLowStock();
-
+        // 不立即保存 — 等用户确认后再持久化
         document.getElementById('scanProgressFill').style.width = '100%';
         document.getElementById('scanProgressText').textContent = '全部完成！';
         this._showBatchSummary();
@@ -3043,6 +3055,104 @@ class CardManager {
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
             return { type: 'new', name: chineseName, englishName, manufacturer, material, variant, cardId: newCard.id };
         }
+    }
+
+    // 预览扫描结果（不修改 cards 数组，仅生成预览数据）
+    _previewScanResult(parsedInfo, imageData) {
+        const chineseName = parsedInfo.chineseName || parsedInfo.englishName || '未命名色卡';
+        const englishName = parsedInfo.englishName || '';
+        const manufacturer = parsedInfo.manufacturer || '';
+        const material = parsedInfo.material || '';
+        const variant = parsedInfo.variant || '';
+        const category = parsedInfo.category || 'gray';
+        const color = parsedInfo.color || Utils.getColorForCategory(category);
+
+        // 尝试匹配现有色卡
+        const matchedCard = this.cards.find(c =>
+            c.chineseName === chineseName ||
+            (englishName && c.englishName === englishName)
+        );
+
+        if (matchedCard) {
+            return {
+                type: 'update',
+                name: matchedCard.chineseName,
+                englishName: matchedCard.englishName,
+                qty: (matchedCard.quantity || 0) + 1,
+                manufacturer: manufacturer || matchedCard.manufacturer,
+                material: material || matchedCard.material,
+                variant: variant || matchedCard.variant,
+                cardId: matchedCard.id,
+                category: category || matchedCard.category
+            };
+        } else {
+            return {
+                type: 'new',
+                name: chineseName,
+                englishName,
+                manufacturer,
+                material,
+                variant,
+                category,
+                color,
+                imageData: imageData || '',
+                cardId: null
+            };
+        }
+    }
+
+    // 确认添加批量扫描结果（用户点击"确认添加"后调用）
+    _commitBatchResults() {
+        const successResults = this._batchResults.filter(r => r.success);
+        if (successResults.length === 0) return;
+
+        successResults.forEach(r => {
+            const info = r.info;
+            if (info.type === 'update') {
+                const card = this.cards.find(c => c.id === info.cardId);
+                if (card) {
+                    const oldQty = card.quantity || 0;
+                    card.quantity = info.qty;
+                    if (info.manufacturer) card.manufacturer = info.manufacturer;
+                    if (info.material) card.material = info.material;
+                    if (info.variant) card.variant = info.variant;
+                    if (info.category) card.category = info.category;
+                    if (info.manufacturer) this.materialManager.addManufacturer(info.manufacturer);
+                    if (info.material) this.materialManager.addMaterial(info.material);
+                    this.stockLogManager.add(card.id, card.chineseName, oldQty, card.quantity, 'scan');
+                }
+            } else if (info.type === 'new') {
+                const newCard = {
+                    id: Date.now() + Math.floor(Math.random() * 100000),
+                    chineseName: info.name,
+                    englishName: info.englishName || '',
+                    manufacturer: info.manufacturer || '',
+                    material: info.material || '',
+                    variant: info.variant || '',
+                    category: info.category || 'gray',
+                    quantity: 1,
+                    config: [],
+                    image: info.imageData || '',
+                    color: info.color || Utils.getColorForCategory(info.category || 'gray'),
+                    notes: '',
+                    sortOrder: this.cards.length
+                };
+                this.cards.push(newCard);
+                if (info.manufacturer) this.materialManager.addManufacturer(info.manufacturer);
+                if (info.material) this.materialManager.addMaterial(info.material);
+                this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
+            }
+        });
+
+        Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();
+        if (CloudStorage.isAvailable()) {
+            CloudStorage.saveCards(this.cards).catch(() => {});
+        }
+
+        this._lastRenderedKey = null;
+        this.renderCards();
+        this.checkLowStock();
     }
 
     async _autoConfirmScan(parsedInfo, imageData) {
@@ -3158,7 +3268,7 @@ class CardManager {
                     for (const opt of options) {
                         optsHtml += '<option value="' + self._escapeHtml(opt) + '">' + self._escapeHtml(opt) + '</option>';
                     }
-                    return '<select class="batch-field-select" data-card-id="' + info.cardId + '" data-field="' + fieldKey + '">' + optsHtml + '</select>';
+                    return '<select class="batch-field-select" data-result-index="' + idx + '" data-field="' + fieldKey + '">' + optsHtml + '</select>';
                 };
 
                 const manufacturerField = makeField('manufacturer', info.manufacturer, this.materialManager.manufacturers || []);
@@ -3218,20 +3328,19 @@ class CardManager {
         prevBtn.onclick = () => this._prevBatchSlide();
         nextBtn.onclick = () => this._nextBatchSlide();
 
-        // 下拉框事件委托：用户手动选择未识别字段
+        // 下拉框事件委托：用户手动选择未识别字段（修改待提交数据）
         const self = this;
         slidesEl.onchange = function(e) {
             if (e.target.classList.contains('batch-field-select')) {
-                const cardId = Number(e.target.dataset.cardId);
+                const resultIdx = Number(e.target.dataset.resultIndex);
                 const field = e.target.dataset.field;
                 const value = e.target.value;
                 if (!value) return;
 
-                // 更新卡片数据
-                const card = self.cards.find(c => c.id === cardId);
-                if (card) {
-                    card[field] = value;
-                    Storage.saveCards(self.cards);
+                // 更新待提交的扫描结果
+                const result = self._batchResults[resultIdx];
+                if (result && result.success && result.info) {
+                    result.info[field] = value;
                     // 注册新厂商/材料
                     if (field === 'manufacturer') self.materialManager.addManufacturer(value);
                     if (field === 'material') self.materialManager.addMaterial(value);
@@ -3239,9 +3348,6 @@ class CardManager {
                     const span = document.createElement('span');
                     span.textContent = value;
                     e.target.replaceWith(span);
-                    // 刷新卡片列表
-                    self._lastRenderedKey = null;
-                    self.renderCards();
                 }
             }
         };
@@ -3254,10 +3360,6 @@ class CardManager {
             prevBtn.style.display = '';
             nextBtn.style.display = '';
         }
-
-        this._lastRenderedKey = null;
-        this.renderCards();
-        this.checkLowStock();
     }
 
     _escapeHtml(text) {
@@ -4157,12 +4259,20 @@ class CardManager {
         let dataHash = 0;
         for (let i = 0; i < cards.length; i++) {
             const c = cards[i];
-            dataHash = ((dataHash << 5) - dataHash + c.id + (c.quantity || 0)) | 0;
-            // 使用字符串内容而非长度，避免同长度不同内容导致的缓存碰撞
+            dataHash = ((dataHash << 5) - dataHash + c.id + (c.quantity || 0) + (c.sortOrder || 0)) | 0;
+            // 使用所有字段的字符串内容，避免同长度不同内容导致的缓存碰撞
             const strFields = (c.manufacturer || '') + (c.material || '') + (c.variant || '') + 
-                             (c.chineseName || '') + (c.category || '') + (c.color || '');
+                             (c.chineseName || '') + (c.englishName || '') + (c.category || '') + 
+                             (c.color || '') + (c.notes || '') + (c.image || '');
             for (let j = 0; j < strFields.length; j++) {
                 dataHash = ((dataHash << 5) - dataHash + strFields.charCodeAt(j)) | 0;
+            }
+            // config 数组也需要纳入哈希
+            if (c.config && Array.isArray(c.config)) {
+                const configStr = c.config.join(',');
+                for (let j = 0; j < configStr.length; j++) {
+                    dataHash = ((dataHash << 5) - dataHash + configStr.charCodeAt(j)) | 0;
+                }
             }
         }
         const cacheKey = `${cards.length}-${dataHash}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
@@ -4227,17 +4337,22 @@ class CardManager {
             }
             
             const color = card.color || Utils.getColorForCategory(card.category);
+            const safeName = this._escapeHtml(card.chineseName);
+            const safeEnName = this._escapeHtml(card.englishName);
+            const safeMfr = this._escapeHtml(card.manufacturer);
+            const safeMat = this._escapeHtml(card.material);
+            const safeVar = card.variant ? ' ' + this._escapeHtml(card.variant) : '';
             const imageHtml = card.image 
-                ? `<div class="card-image"><img src="${card.image}" alt="${card.chineseName}" loading="lazy"></div>`
-                : `<div class="card-color-preview" style="background: ${color};"></div>`;
+                ? `<div class="card-image"><img src="${this._escapeHtml(card.image)}" alt="${safeName}" loading="lazy"></div>`
+                : `<div class="card-color-preview" style="background: ${this._escapeHtml(color)};"></div>`;
 
             const batchCheckHtml = this.batchMode
                 ? `<div class="card-check" data-id="${card.id}"><div class="card-checkbox ${this.selectedCards.has(card.id) ? 'checked' : ''}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div></div>`
                 : '';
             
-            const configText = Utils.configToText(card.config);
+            const configText = this._escapeHtml(Utils.configToText(card.config));
             const notesHtml = card.notes && card.notes.trim()
-                ? `<div class="card-notes-preview">${card.notes}</div>`
+                ? `<div class="card-notes-preview">${this._escapeHtml(card.notes)}</div>`
                 : '';
             
             cardElement.innerHTML = `
@@ -4245,18 +4360,18 @@ class CardManager {
                 ${imageHtml}
                 <div class="card-content">
                     <div class="card-title-row">
-                        <span class="card-color-dot" style="background: ${color};" title="${color}"></span>
-                        <h3 class="card-title">${card.chineseName}</h3>
+                        <span class="card-color-dot" style="background: ${this._escapeHtml(color)};" title="${this._escapeHtml(color)}"></span>
+                        <h3 class="card-title">${safeName}</h3>
                     </div>
-                    <p class="card-subtitle">${card.englishName}</p>
+                    <p class="card-subtitle">${safeEnName}</p>
                     <div class="card-info">
                         <div class="info-item">
                             <div class="info-label">产商</div>
-                            <div class="info-value">${card.manufacturer}</div>
+                            <div class="info-value">${safeMfr}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">材料</div>
-                            <div class="info-value">${card.material}${card.variant ? ' ' + card.variant : ''}</div>
+                            <div class="info-value">${safeMat}${safeVar}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">库存</div>
@@ -4778,6 +4893,8 @@ class CardManager {
     }
 
     applyTemplateToAllCards() {
+        const previousStates = this.cards.map(c => ({ cardId: c.id, state: { manufacturer: c.manufacturer, material: c.material, config: c.config } }));
+
         this.cards = this.cards.map(card => ({
             ...card,
             manufacturer: this.template.manufacturer || card.manufacturer,
@@ -4786,8 +4903,16 @@ class CardManager {
         }));
 
         Storage.saveCards(this.cards);
-        CloudStorage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 防止轮询覆盖
+        if (CloudStorage.isAvailable()) CloudStorage.saveCards(this.cards);
         this.renderCards();
+
+        // 撤销支持
+        this.undoManager.push({
+            type: 'batch',
+            data: { previousStates },
+            description: '已应用模板到所有色卡'
+        });
     }
 
     filterCards(category) {
@@ -4834,6 +4959,7 @@ class CardManager {
         this.cards.forEach((c, i) => c.sortOrder = i);
 
         Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 防止轮询覆盖
         if (CloudStorage.isAvailable()) CloudStorage.saveCards(this.cards);
         this.applyFilters();
 
@@ -4953,11 +5079,16 @@ class CardManager {
             if (cloudUnreachable) throw new Error('云端不可达');
 
             // 云端为唯一数据源，直接覆盖本地
-            if (cloudCards) {
+            // 注意：空数组 [] 也是 truthy，必须检查长度，防止云端误清空导致本地数据丢失
+            if (cloudCards && cloudCards.length > 0) {
                 this.cards = cloudCards;
                 Storage.saveCards(this.cards);
-            } else if (this.cards.length > 0) {
-                // 云端为空但本地有数据，推送到云端
+            } else if (!cloudCards && this.cards.length > 0) {
+                // 云端返回 null（加载失败）且本地有数据，推送到云端
+                CloudStorage.saveCards(this.cards);
+            } else if (cloudCards && cloudCards.length === 0 && this.cards.length > 0) {
+                // 云端确实为空但本地有数据，保留本地数据并推送到云端
+                log('[Sync] 云端为空但本地有数据，保留本地并推送');
                 CloudStorage.saveCards(this.cards);
             }
 
@@ -5119,14 +5250,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cloudCards = await CloudStorage.loadCards();
                 if (!cloudCards) return;
 
-                // 通过卡片 ID 集合比较，避免 JSON.stringify 属性顺序问题
-                const localIds = new Set(window.cardManager.cards.map(c => c.id));
+                // 比较 ID 集合 + 内容哈希，检测新增/删除/编辑
+                const localCards = window.cardManager.cards;
+                const localIds = new Set(localCards.map(c => c.id));
                 const cloudIds = new Set(cloudCards.map(c => c.id));
 
                 const idsMatch = localIds.size === cloudIds.size &&
                     [...localIds].every(id => cloudIds.has(id));
 
-                if (!idsMatch) {
+                // 即使 ID 相同，也要检查内容是否有变化（其他设备编辑了卡片）
+                let contentChanged = false;
+                if (idsMatch) {
+                    // 构建内容哈希函数（与 renderCards 缓存哈希一致）
+                    const hashCard = (c) => {
+                        let h = c.id + (c.quantity || 0);
+                        const str = (c.manufacturer || '') + (c.material || '') + (c.variant || '') +
+                                   (c.chineseName || '') + (c.englishName || '') + (c.category || '') +
+                                   (c.color || '') + (c.notes || '') + (c.sortOrder || 0);
+                        for (let i = 0; i < str.length; i++) {
+                            h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+                        }
+                        return h;
+                    };
+                    const localMap = new Map(localCards.map(c => [c.id, hashCard(c)]));
+                    for (const cc of cloudCards) {
+                        if (localMap.get(cc.id) !== hashCard(cc)) {
+                            contentChanged = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!idsMatch || contentChanged) {
                     log('[Sync] 云端数据有变化，更新本地');
                     window.cardManager.cards = cloudCards;
                     Storage.saveCards(cloudCards);
