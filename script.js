@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.7';
+const CURRENT_VERSION = '2.8';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -2951,6 +2951,7 @@ class CardManager {
         }
 
         // 刷新显示
+        this._lastRenderedKey = null;  // 强制刷新，避免缓存键碰撞导致 UI 不更新
         this.renderCards();
         this.checkLowStock();
 
@@ -4086,6 +4087,7 @@ class CardManager {
             }
 
             // 刷新显示
+            this._lastRenderedKey = null;
             this.renderCards();
             this.checkLowStock();
             
@@ -4127,8 +4129,12 @@ class CardManager {
         for (let i = 0; i < cards.length; i++) {
             const c = cards[i];
             dataHash = ((dataHash << 5) - dataHash + c.id + (c.quantity || 0)) | 0;
-            dataHash = ((dataHash << 5) - dataHash + (c.manufacturer || '').length + (c.material || '').length + (c.variant || '').length) | 0;
-            dataHash = ((dataHash << 5) - dataHash + (c.chineseName || '').length + (c.category || '').length + (c.color || '').length) | 0;
+            // 使用字符串内容而非长度，避免同长度不同内容导致的缓存碰撞
+            const strFields = (c.manufacturer || '') + (c.material || '') + (c.variant || '') + 
+                             (c.chineseName || '') + (c.category || '') + (c.color || '');
+            for (let j = 0; j < strFields.length; j++) {
+                dataHash = ((dataHash << 5) - dataHash + strFields.charCodeAt(j)) | 0;
+            }
         }
         const cacheKey = `${cards.length}-${dataHash}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
         if (this._lastRenderedKey === cacheKey && cards.length > 0) {
