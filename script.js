@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.2';
+const CURRENT_VERSION = '2.3';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -3962,7 +3962,10 @@ class CardManager {
         // Generate cache key - include card data checksum to detect content changes
         let dataHash = 0;
         for (let i = 0; i < cards.length; i++) {
-            dataHash = ((dataHash << 5) - dataHash + cards[i].id + (cards[i].quantity || 0)) | 0;
+            const c = cards[i];
+            dataHash = ((dataHash << 5) - dataHash + c.id + (c.quantity || 0)) | 0;
+            dataHash = ((dataHash << 5) - dataHash + (c.manufacturer || '').length + (c.material || '').length + (c.variant || '').length) | 0;
+            dataHash = ((dataHash << 5) - dataHash + (c.chineseName || '').length + (c.category || '').length + (c.color || '').length) | 0;
         }
         const cacheKey = `${cards.length}-${dataHash}-${this.currentCategory}-${this.currentSearch}-${this.currentSort}-${this.batchMode}-${this.selectedCards.size}`;
         if (this._lastRenderedKey === cacheKey && cards.length > 0) {
