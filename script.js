@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.4';
+const CURRENT_VERSION = '2.5';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -4978,6 +4978,10 @@ class CardManager {
 document.addEventListener('DOMContentLoaded', () => {
     window.cardManager = new CardManager();
     window.cardManager.init();
+
+    // 动态显示版本号
+    const versionEl = document.getElementById('appVersionDisplay');
+    if (versionEl) versionEl.textContent = '色卡管理工具 v' + CURRENT_VERSION;
 
     // 同浏览器多标签同步：监听 localStorage 变化
     window.addEventListener('storage', (e) => {
