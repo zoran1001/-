@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.6';
+const CURRENT_VERSION = '2.7';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -2992,7 +2992,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(matchedCard.id, matchedCard.chineseName, oldQty, matchedCard.quantity, 'scan');
-            return { type: 'update', name: matchedCard.chineseName, englishName, qty: matchedCard.quantity, manufacturer, material, variant };
+            return { type: 'update', name: matchedCard.chineseName, englishName, qty: matchedCard.quantity, manufacturer, material, variant, cardId: matchedCard.id };
         } else {
             const newCard = {
                 id: Date.now() + Math.floor(Math.random() * 100000),
@@ -3013,7 +3013,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
-            return { type: 'new', name: chineseName, englishName, manufacturer, material, variant };
+            return { type: 'new', name: chineseName, englishName, manufacturer, material, variant, cardId: newCard.id };
         }
     }
 
@@ -3097,6 +3097,9 @@ class CardManager {
         slidesEl.innerHTML = '';
         dotsEl.innerHTML = '';
 
+        // 收集所有已知的材质选项（从现有卡片中）
+        const knownVariants = [...new Set(this.cards.map(c => c.variant).filter(v => v && v.trim()))];
+
         this._batchResults.forEach((r, idx) => {
             // 创建 slide
             const slide = document.createElement('div');
@@ -3116,6 +3119,24 @@ class CardManager {
                 // OCR 原文（截断显示）
                 const ocrDisplay = r.ocrText ? (r.ocrText.length > 200 ? r.ocrText.substring(0, 200) + '...' : r.ocrText) : '无';
 
+                // 辅助函数：生成下拉框或显示文本
+                const self = this;
+                const makeField = (fieldKey, value, options) => {
+                    if (value && value.trim()) {
+                        return '<span>' + self._escapeHtml(value) + '</span>';
+                    }
+                    // 未识别 → 显示下拉框
+                    let optsHtml = '<option value="">请选择...</option>';
+                    for (const opt of options) {
+                        optsHtml += '<option value="' + self._escapeHtml(opt) + '">' + self._escapeHtml(opt) + '</option>';
+                    }
+                    return '<select class="batch-field-select" data-card-id="' + info.cardId + '" data-field="' + fieldKey + '">' + optsHtml + '</select>';
+                };
+
+                const manufacturerField = makeField('manufacturer', info.manufacturer, this.materialManager.manufacturers || []);
+                const materialField = makeField('material', info.material, this.materialManager.materials || []);
+                const variantField = makeField('variant', info.variant, knownVariants);
+
                 slide.innerHTML =
                     '<div class="batch-slide-header">' +
                         '<span class="batch-slide-index">' + (idx + 1) + ' / ' + this._batchResults.length + '</span>' +
@@ -3133,9 +3154,9 @@ class CardManager {
                         '<div class="batch-slide-info-grid">' +
                             '<div class="batch-info-item"><label>中文名</label><span>' + this._escapeHtml(info.name || '未识别') + '</span></div>' +
                             '<div class="batch-info-item"><label>英文名</label><span>' + this._escapeHtml(info.englishName || '未识别') + '</span></div>' +
-                            '<div class="batch-info-item"><label>产商</label><span>' + this._escapeHtml(info.manufacturer || '未识别') + '</span></div>' +
-                            '<div class="batch-info-item"><label>材料</label><span>' + this._escapeHtml(info.material || '未识别') + '</span></div>' +
-                            '<div class="batch-info-item"><label>材质</label><span>' + this._escapeHtml(info.variant || '未识别') + '</span></div>' +
+                            '<div class="batch-info-item"><label>产商</label>' + manufacturerField + '</div>' +
+                            '<div class="batch-info-item"><label>材料</label>' + materialField + '</div>' +
+                            '<div class="batch-info-item"><label>材质</label>' + variantField + '</div>' +
                         '</div>' +
                     '</div>' +
                     '<div class="batch-match-result-bar ' + matchClass + '">' +
@@ -3168,6 +3189,34 @@ class CardManager {
 
         prevBtn.onclick = () => this._prevBatchSlide();
         nextBtn.onclick = () => this._nextBatchSlide();
+
+        // 下拉框事件委托：用户手动选择未识别字段
+        const self = this;
+        slidesEl.onchange = function(e) {
+            if (e.target.classList.contains('batch-field-select')) {
+                const cardId = Number(e.target.dataset.cardId);
+                const field = e.target.dataset.field;
+                const value = e.target.value;
+                if (!value) return;
+
+                // 更新卡片数据
+                const card = self.cards.find(c => c.id === cardId);
+                if (card) {
+                    card[field] = value;
+                    Storage.saveCards(self.cards);
+                    // 注册新厂商/材料
+                    if (field === 'manufacturer') self.materialManager.addManufacturer(value);
+                    if (field === 'material') self.materialManager.addMaterial(value);
+                    // 将下拉框替换为文本显示
+                    const span = document.createElement('span');
+                    span.textContent = value;
+                    e.target.replaceWith(span);
+                    // 刷新卡片列表
+                    self._lastRenderedKey = null;
+                    self.renderCards();
+                }
+            }
+        };
 
         // 显示/隐藏按钮
         if (this._batchTotalSlides <= 1) {
@@ -3342,7 +3391,7 @@ class CardManager {
 
     // ---- 关键词库 ----
     _materialKeywords = ['PLA M', 'PLA', 'PETG', 'ABS', 'TPU', 'Nylon', 'PC', 'PVA', 'HIPS', 'ASA', 'PP', 'PE', 'PET', 'PLA+', 'PETG+', 'TPE', 'PC-ABS'];
-    _manufacturerKeywords = ['Jucoole', 'kexcelled', 'eSUN', 'HATCHBOX', 'Overture', 'SUNLU', 'Inland', 'Polymaker', 'Prusament', 'Bambu', 'Creality', 'Anycubic', 'Elegoo'];
+    _manufacturerKeywords = ['Jucoole', 'kexcelled', 'eSUN', 'HATCHBOX', 'Overture', 'SUNLU', 'Inland', 'Polymaker', 'Prusament', 'Bambu', 'Creality', 'Anycubic', 'Elegoo', '兰博'];
     _colorMap = {
         'red': 'red', '红色': 'red', '赤色': 'red', '大红': 'red', '中国红': 'red',
         'orange': 'orange', '橙色': 'orange', '橘色': 'orange',
@@ -3674,12 +3723,22 @@ class CardManager {
     _detectManufacturer(text) {
         if (!text) return null;
         const lower = text.toLowerCase();
+        // 1. 硬编码关键词匹配
         for (const brand of this._manufacturerKeywords) {
             if (lower.includes(brand.toLowerCase())) return brand;
         }
-        // 含公司/厂/集团等关键词
+        // 2. 后台已添加的厂商列表匹配（优先中文名称）
+        if (this.materialManager && this.materialManager.manufacturers) {
+            for (const mfr of this.materialManager.manufacturers) {
+                if (mfr && text.includes(mfr)) return mfr;
+            }
+        }
+        // 3. 含公司/厂/集团等关键词
         const cnMatch = text.match(/([\u4e00-\u9fa5]{2,}(?:公司|集团|科技|厂|实业))/);
         if (cnMatch) return cnMatch[1];
+        // 4. 中文品牌模式：如 "兰博3D打印机耗材" / "XX专业供应商"
+        const cnBrandMatch = text.match(/([\u4e00-\u9fa5]{2,4})(?:3D|打印机|耗材|专业供应商| filament)/i);
+        if (cnBrandMatch) return cnBrandMatch[1];
         return null;
     }
 

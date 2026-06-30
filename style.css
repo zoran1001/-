@@ -3905,6 +3905,32 @@ input:checked + .toggle-slider:before {
     color: var(--primary-color);
 }
 
+/* 批量轮播图 - 未识别字段下拉框 */
+.batch-field-select {
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--primary-color);
+    background: var(--bg-primary);
+    border: 1px dashed var(--primary-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+    appearance: auto;
+}
+
+.batch-field-select:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-card-hover);
+}
+
+.batch-field-select:focus {
+    border-style: solid;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 /* 响应式 */
 @media (max-width: 600px) {
     .batch-carousel-slide {
