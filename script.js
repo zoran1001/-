@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.5';
+const CURRENT_VERSION = '2.6';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -2992,7 +2992,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(matchedCard.id, matchedCard.chineseName, oldQty, matchedCard.quantity, 'scan');
-            return { type: 'update', name: matchedCard.chineseName, qty: matchedCard.quantity, manufacturer, material, variant };
+            return { type: 'update', name: matchedCard.chineseName, englishName, qty: matchedCard.quantity, manufacturer, material, variant };
         } else {
             const newCard = {
                 id: Date.now() + Math.floor(Math.random() * 100000),
@@ -3013,7 +3013,7 @@ class CardManager {
             if (manufacturer) this.materialManager.addManufacturer(manufacturer);
             if (material) this.materialManager.addMaterial(material);
             this.stockLogManager.add(newCard.id, newCard.chineseName, 0, 1, 'scan');
-            return { type: 'new', name: chineseName, manufacturer, material, variant };
+            return { type: 'new', name: chineseName, englishName, manufacturer, material, variant };
         }
     }
 
@@ -3105,7 +3105,8 @@ class CardManager {
             if (r.success) {
                 const info = r.info;
                 const label = info.type === 'new' ? '新增' : '更新库存→' + info.qty;
-                const matchLabel = info.type === 'new' ? '<span class="batch-match-badge new">新增色卡</span>' : '<span class="batch-match-badge update">匹配已有：' + info.name + '（' + label + '）</span>';
+                const matchText = info.type === 'new' ? '新增色卡' : '匹配已有：' + info.name + '（' + label + '）';
+                const matchClass = info.type === 'new' ? 'new' : 'update';
 
                 // 图片缩略图
                 const thumbHtml = r.imageData
@@ -3115,41 +3116,38 @@ class CardManager {
                 // OCR 原文（截断显示）
                 const ocrDisplay = r.ocrText ? (r.ocrText.length > 200 ? r.ocrText.substring(0, 200) + '...' : r.ocrText) : '无';
 
-                // 解析信息
-                const details = [];
-                if (info.manufacturer) details.push(info.manufacturer);
-                if (info.material) details.push(info.material);
-                if (info.variant) details.push(info.variant);
-
                 slide.innerHTML =
                     '<div class="batch-slide-header">' +
                         '<span class="batch-slide-index">' + (idx + 1) + ' / ' + this._batchResults.length + '</span>' +
-                        '<span class="batch-slide-filename">' + r.name + '</span>' +
+                        '<span class="batch-slide-filename">' + this._escapeHtml(r.name) + '</span>' +
                     '</div>' +
-                    '<div class="batch-slide-body">' +
-                        '<div class="batch-slide-top">' +
-                            thumbHtml +
-                            '<div class="batch-slide-ocr">' +
-                                '<strong>原始识别文字：</strong>' +
-                                '<pre>' + this._escapeHtml(ocrDisplay) + '</pre>' +
-                            '</div>' +
+                    '<div class="batch-slide-top">' +
+                        thumbHtml +
+                        '<div class="batch-slide-ocr">' +
+                            '<strong>原始识别文字：</strong>' +
+                            '<pre>' + this._escapeHtml(ocrDisplay) + '</pre>' +
                         '</div>' +
+                    '</div>' +
+                    '<div class="batch-slide-info-section">' +
+                        '<div class="batch-slide-info-section-title">解析信息</div>' +
                         '<div class="batch-slide-info-grid">' +
-                            '<div class="batch-info-item"><label>中文名</label><span>' + this._escapeHtml(info.name || '') + '</span></div>' +
-                            '<div class="batch-info-item"><label>英文名</label><span>' + this._escapeHtml(info.englishName || '') + '</span></div>' +
+                            '<div class="batch-info-item"><label>中文名</label><span>' + this._escapeHtml(info.name || '未识别') + '</span></div>' +
+                            '<div class="batch-info-item"><label>英文名</label><span>' + this._escapeHtml(info.englishName || '未识别') + '</span></div>' +
                             '<div class="batch-info-item"><label>产商</label><span>' + this._escapeHtml(info.manufacturer || '未识别') + '</span></div>' +
                             '<div class="batch-info-item"><label>材料</label><span>' + this._escapeHtml(info.material || '未识别') + '</span></div>' +
                             '<div class="batch-info-item"><label>材质</label><span>' + this._escapeHtml(info.variant || '未识别') + '</span></div>' +
-                            '<div class="batch-info-item"><label>结果</label>' + matchLabel + '</div>' +
                         '</div>' +
+                    '</div>' +
+                    '<div class="batch-match-result-bar ' + matchClass + '">' +
+                        '<span class="batch-match-badge ' + matchClass + '">' + this._escapeHtml(matchText) + '</span>' +
                     '</div>';
             } else {
                 slide.innerHTML =
                     '<div class="batch-slide-header">' +
                         '<span class="batch-slide-index">' + (idx + 1) + ' / ' + this._batchResults.length + '</span>' +
-                        '<span class="batch-slide-filename">' + r.name + '</span>' +
+                        '<span class="batch-slide-filename">' + this._escapeHtml(r.name) + '</span>' +
                     '</div>' +
-                    '<div class="batch-slide-body batch-slide-fail">' +
+                    '<div class="batch-slide-fail">' +
                         '<div class="batch-fail-icon">✗</div>' +
                         '<div class="batch-fail-text">' + this._escapeHtml(r.error || '处理失败') + '</div>' +
                     '</div>';
@@ -3844,6 +3842,13 @@ class CardManager {
                 // 尝试从原文找 Lite/Matte/Silk 等
                 const variantMatch = rawText.match(/\b(Lite|Matte|Silk|Pro|Plus|\+|M|LITE)\b/i);
                 parsedInfo.variant = variantMatch ? variantMatch[1] : '';
+            } else {
+                // 清理非拉丁前缀（如 "哑光 Matte" → "Matte"）
+                const latinOnly = parsedInfo.variant.replace(/^[^\x00-\x7F]+/, '').trim();
+                if (latinOnly && latinOnly !== parsedInfo.variant) {
+                    log('[PostProcess] 清理材质非拉丁前缀:', parsedInfo.variant, '→', latinOnly);
+                    parsedInfo.variant = latinOnly;
+                }
             }
         }
 
