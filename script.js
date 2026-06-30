@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.9';
+const CURRENT_VERSION = '2.10';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -2316,7 +2316,8 @@ class CardManager {
         this._lastLocalChange = Date.now();  // 记录本地修改时间
         localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
         if (CloudStorage.isAvailable()) {
-            await CloudStorage.saveCards(this.cards);
+            // 真正从云端删除已移除的卡片，而非仅 upsert 剩余卡片
+            await Promise.all(deletedCards.map(c => CloudStorage.deleteCard(c.id)));
         }
         this.selectedCards.clear();
         this.applyFilters();
@@ -4701,7 +4702,17 @@ class CardManager {
             Storage.saveCards(this.cards);
             this._lastLocalChange = Date.now();  // 记录本地修改时间
             localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
-            await CloudStorage.deleteCard(this.currentEditingCard.id);
+
+            // 检查云端删除结果
+            const cloudDeleted = await CloudStorage.deleteCard(this.currentEditingCard.id);
+            if (!cloudDeleted && CloudStorage.isAvailable()) {
+                // 云端删除失败，但本地已删除，给用户提示
+                console.warn('[Delete] 云端删除失败，卡片ID:', deletedCard.id);
+                setTimeout(() => {
+                    Toast.show('卡片已从本地删除，但云端删除失败，下次同步可能会恢复');
+                }, 500);
+            }
+
             this.renderCards();
             this.modalManager.close('editCard');
 
