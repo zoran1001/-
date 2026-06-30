@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.8';
+const CURRENT_VERSION = '2.9';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -1603,6 +1603,7 @@ class CardManager {
         this.undoManager = new UndoManager(this);
         this.draggedCardId = null;
         this._lastRenderedKey = null;    // Cache for avoiding unnecessary re-renders
+        this._lastLocalChange = 0;       // Timestamp of last local modification (for sync cooldown)
         
         // 批量扫描相关状态
         this._batchQueue = [];           // 待处理图片队列
@@ -2010,6 +2011,7 @@ class CardManager {
         if (newQty === oldQty) return;
         card.quantity = newQty;
         Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 记录本地修改时间
         if (CloudStorage.isAvailable()) CloudStorage.saveCards(this.cards).catch(() => {});
         // 局部更新DOM，避免整页重渲染
         const cardEl = this.cardsContainer.querySelector(`[data-id="${cardId}"]`);
@@ -2311,6 +2313,7 @@ class CardManager {
         const deletedCards = this.cards.filter(c => this.selectedCards.has(c.id));
         this.cards = this.cards.filter(c => !this.selectedCards.has(c.id));
         Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 记录本地修改时间
         localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
         if (CloudStorage.isAvailable()) {
             await CloudStorage.saveCards(this.cards);
@@ -2371,6 +2374,7 @@ class CardManager {
         });
 
         Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 记录本地修改时间
         if (CloudStorage.isAvailable()) {
             CloudStorage.saveCards(this.cards);
         }
@@ -2945,6 +2949,7 @@ class CardManager {
 
         // 批量处理完成后，统一保存一次
         Storage.saveCards(this.cards);
+        this._lastLocalChange = Date.now();  // 记录本地修改时间，防止轮询覆盖
         if (CloudStorage.isAvailable()) {
             // 批量同步云端（不阻塞 UI）
             CloudStorage.saveCards(this.cards).catch(() => {});
@@ -4035,6 +4040,7 @@ class CardManager {
                     if (category) card.category = category;
 
                     Storage.saveCards(this.cards);
+                    this._lastLocalChange = Date.now();  // 记录本地修改时间
                     
                     // 后台同步到云端，不阻塞 UI
                     if (CloudStorage.isAvailable()) {
@@ -4070,6 +4076,7 @@ class CardManager {
 
                 this.cards.push(newCard);
                 Storage.saveCards(this.cards);
+                this._lastLocalChange = Date.now();  // 记录本地修改时间
                 
                 // 后台同步到云端，不阻塞 UI
                 if (CloudStorage.isAvailable()) {
@@ -4544,6 +4551,7 @@ class CardManager {
                 this.stockLogManager.add(newCard.id, newCard.chineseName, 0, quantity, 'add');
             }
             Storage.saveCards(this.cards);
+            this._lastLocalChange = Date.now();  // 记录本地修改时间
             // 后台同步到云端，不阻塞 UI
             if (CloudStorage.isAvailable()) {
                 CloudStorage.addCard(newCard).catch(e => warn('云端同步失败', e));
@@ -4626,6 +4634,7 @@ class CardManager {
             }
 
             Storage.saveCards(this.cards);
+            this._lastLocalChange = Date.now();  // 记录本地修改时间
             // 后台同步到云端，不阻塞 UI
             if (CloudStorage.isAvailable()) {
                 CloudStorage.updateCard(this.cards[cardIndex]).catch(e => warn('云端同步失败', e));
@@ -4690,6 +4699,7 @@ class CardManager {
             const deletedCard = { ...this.currentEditingCard };
             this.cards = this.cards.filter(c => c.id !== this.currentEditingCard.id);
             Storage.saveCards(this.cards);
+            this._lastLocalChange = Date.now();  // 记录本地修改时间
             localStorage.setItem(LOCAL_DELETE_KEY, Date.now().toString());
             await CloudStorage.deleteCard(this.currentEditingCard.id);
             this.renderCards();
@@ -5066,6 +5076,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (CloudStorage.isAvailable()) {
         setInterval(async () => {
             if (!window.cardManager || window.cardManager._syncing) return;
+            // 冷却期：本地修改后 60 秒内不同步，避免云端旧数据覆盖本地新数据
+            const timeSinceLastChange = Date.now() - (window.cardManager._lastLocalChange || 0);
+            if (timeSinceLastChange < 60000) {
+                log('[Sync] 本地刚修改，跳过同步');
+                return;
+            }
             window.cardManager._syncing = true;
             try {
                 const cloudCards = await CloudStorage.loadCards();
