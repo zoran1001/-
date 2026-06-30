@@ -5,7 +5,7 @@ const STOCK_LOG_KEY = 'color_card_stock_logs';
 const MANUFACTURERS_KEY = 'color_card_manufacturers';
 const LOCAL_DELETE_KEY = 'color_cards_local_delete_time';
 const VERSION_KEY = 'color_cards_version';
-const CURRENT_VERSION = '2.3';
+const CURRENT_VERSION = '2.4';
 
 // Debug mode - set to false in production
 const DEBUG = false;
@@ -2913,7 +2913,7 @@ class CardManager {
 
                 // 自动确认保存（不立即持久化，批量保存）
                 const saveResult = this._autoConfirmScanBatch(parsedInfo, item.data);
-                this._batchResults.push({ name: item.name, success: true, info: saveResult });
+                this._batchResults.push({ name: item.name, success: true, info: saveResult, ocrText: ocrText, imageData: item.data });
                 return { name: item.name, success: true, info: saveResult };
             } catch (err) {
                 warn('[Batch] 处理失败:', item.name, err);
@@ -3087,26 +3087,125 @@ class CardManager {
             (failed.length ? '<span class="batch-stat fail">失败 ' + failed.length + ' 张</span>' : '') +
             '<span class="batch-stat info">新增 ' + newCards.length + ' 张，更新 ' + updated.length + ' 张</span>';
 
-        const listEl = document.getElementById('batchResultList');
-        listEl.innerHTML = this._batchResults.map(r => {
+        // 构建轮播图
+        const carouselEl = document.getElementById('batchCarousel');
+        const slidesEl = document.getElementById('batchCarouselSlides');
+        const dotsEl = document.getElementById('batchCarouselDots');
+        const prevBtn = document.getElementById('batchCarouselPrev');
+        const nextBtn = document.getElementById('batchCarouselNext');
+
+        slidesEl.innerHTML = '';
+        dotsEl.innerHTML = '';
+
+        this._batchResults.forEach((r, idx) => {
+            // 创建 slide
+            const slide = document.createElement('div');
+            slide.className = 'batch-carousel-slide' + (idx === 0 ? ' active' : '');
+
             if (r.success) {
                 const info = r.info;
                 const label = info.type === 'new' ? '新增' : '更新库存→' + info.qty;
-                // 构建详情行：产商 / 材料 / 材质
+                const matchLabel = info.type === 'new' ? '<span class="batch-match-badge new">新增色卡</span>' : '<span class="batch-match-badge update">匹配已有：' + info.name + '（' + label + '）</span>';
+
+                // 图片缩略图
+                const thumbHtml = r.imageData
+                    ? '<img class="batch-slide-thumb" src="' + r.imageData + '" alt="' + r.name + '">'
+                    : '<div class="batch-slide-thumb-placeholder">📷</div>';
+
+                // OCR 原文（截断显示）
+                const ocrDisplay = r.ocrText ? (r.ocrText.length > 200 ? r.ocrText.substring(0, 200) + '...' : r.ocrText) : '无';
+
+                // 解析信息
                 const details = [];
                 if (info.manufacturer) details.push(info.manufacturer);
                 if (info.material) details.push(info.material);
                 if (info.variant) details.push(info.variant);
-                const detailStr = details.length > 0 ? '<span class="batch-result-detail">' + details.join(' / ') + '</span>' : '';
-                return '<div class="batch-result-item success"><span class="batch-result-icon">✓</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + info.name + ' (' + label + ')</span>' + detailStr + '</div>';
-            } else {
-                return '<div class="batch-result-item fail"><span class="batch-result-icon">✗</span><span class="batch-result-name">' + r.name + '</span><span class="batch-result-label">' + r.error + '</span></div>';
-            }
-        }).join('');
 
-        this._lastRenderedKey = null; // 强制重新渲染卡片
+                slide.innerHTML =
+                    '<div class="batch-slide-header">' +
+                        '<span class="batch-slide-index">' + (idx + 1) + ' / ' + this._batchResults.length + '</span>' +
+                        '<span class="batch-slide-filename">' + r.name + '</span>' +
+                    '</div>' +
+                    '<div class="batch-slide-body">' +
+                        '<div class="batch-slide-top">' +
+                            thumbHtml +
+                            '<div class="batch-slide-ocr">' +
+                                '<strong>原始识别文字：</strong>' +
+                                '<pre>' + this._escapeHtml(ocrDisplay) + '</pre>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="batch-slide-info-grid">' +
+                            '<div class="batch-info-item"><label>中文名</label><span>' + this._escapeHtml(info.name || '') + '</span></div>' +
+                            '<div class="batch-info-item"><label>英文名</label><span>' + this._escapeHtml(info.englishName || '') + '</span></div>' +
+                            '<div class="batch-info-item"><label>产商</label><span>' + this._escapeHtml(info.manufacturer || '未识别') + '</span></div>' +
+                            '<div class="batch-info-item"><label>材料</label><span>' + this._escapeHtml(info.material || '未识别') + '</span></div>' +
+                            '<div class="batch-info-item"><label>材质</label><span>' + this._escapeHtml(info.variant || '未识别') + '</span></div>' +
+                            '<div class="batch-info-item"><label>结果</label>' + matchLabel + '</div>' +
+                        '</div>' +
+                    '</div>';
+            } else {
+                slide.innerHTML =
+                    '<div class="batch-slide-header">' +
+                        '<span class="batch-slide-index">' + (idx + 1) + ' / ' + this._batchResults.length + '</span>' +
+                        '<span class="batch-slide-filename">' + r.name + '</span>' +
+                    '</div>' +
+                    '<div class="batch-slide-body batch-slide-fail">' +
+                        '<div class="batch-fail-icon">✗</div>' +
+                        '<div class="batch-fail-text">' + this._escapeHtml(r.error || '处理失败') + '</div>' +
+                    '</div>';
+            }
+
+            slidesEl.appendChild(slide);
+
+            // 创建 dot
+            const dot = document.createElement('span');
+            dot.className = 'batch-carousel-dot' + (idx === 0 ? ' active' : '');
+            dot.addEventListener('click', () => this._goToBatchSlide(idx));
+            dotsEl.appendChild(dot);
+        });
+
+        // 轮播控制
+        this._batchCurrentSlide = 0;
+        this._batchTotalSlides = this._batchResults.length;
+
+        prevBtn.onclick = () => this._prevBatchSlide();
+        nextBtn.onclick = () => this._nextBatchSlide();
+
+        // 显示/隐藏按钮
+        if (this._batchTotalSlides <= 1) {
+            prevBtn.style.display = 'none';
+            nextBtn.style.display = 'none';
+        } else {
+            prevBtn.style.display = '';
+            nextBtn.style.display = '';
+        }
+
+        this._lastRenderedKey = null;
         this.renderCards();
         this.checkLowStock();
+    }
+
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    _goToBatchSlide(index) {
+        if (index < 0 || index >= this._batchTotalSlides) return;
+        const slides = document.querySelectorAll('.batch-carousel-slide');
+        const dots = document.querySelectorAll('.batch-carousel-dot');
+        slides.forEach((s, i) => s.classList.toggle('active', i === index));
+        dots.forEach((d, i) => d.classList.toggle('active', i === index));
+        this._batchCurrentSlide = index;
+    }
+
+    _prevBatchSlide() {
+        this._goToBatchSlide(this._batchCurrentSlide - 1);
+    }
+
+    _nextBatchSlide() {
+        this._goToBatchSlide(this._batchCurrentSlide + 1);
     }
 
     // 压缩图片：最大边长 maxSize，JPEG 质量 quality
